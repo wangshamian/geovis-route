@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORS 本地测试页（Cesium 地球）</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Widgets/widgets.css" />
+<script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/';</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Cesium.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, "Microsoft YaHei", sans-serif; }
+  #cesiumContainer { position: absolute; inset: 0; }
+  .panel {
+    position: absolute; top: 10px; left: 10px; z-index: 1000; width: 340px;
+    background: rgba(255,255,255,.96); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.18);
+    padding: 12px 14px; font-size: 13px; color: #222;
+  }
+  .panel h1 { font-size: 15px; margin: 0 0 8px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 8px; border-bottom: 1px solid #e3e6ec; }
+  .tab {
+    flex: 1; padding: 6px 8px; border: 1px solid transparent; border-bottom: none; background: transparent;
+    color: #5c6672; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px;
+  }
+  .tab.active { background: #eef3fd; border-color: #d5e0f5; color: #1a4fa0; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  .row label.lbl { flex: 0 0 62px; color: #555; }
+  input[type=text], input[type=number], select {
+    flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+  }
+  button.act {
+    padding: 5px 10px; border: 1px solid #2f6fdb; background: #2f6fdb; color: #fff;
+    border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  button.act.secondary { background: #fff; color: #2f6fdb; }
+  #hint { color: #777; margin-top: 8px; line-height: 1.5; }
+  .result { margin-top: 8px; padding: 8px; background: #f5f7fb; border-radius: 6px; display: none; }
+  .result .big { font-size: 16px; font-weight: 600; color: #1a4fa0; }
+  #error { margin-top: 8px; color: #b3261e; display: none; white-space: pre-wrap; max-height: 140px; overflow: auto; }
+  .pts { color: #444; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div class="panel">
+  <h1>ORS 本地测试 · Cesium 地球</h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="route">路线规划</button>
+    <button class="tab" data-tab="iso">等时线</button>
+  </div>
+
+  <div class="row">
+    <label class="lbl">服务地址</label>
+    <input type="text" id="base" value="http://localhost:8082/ors" />
+  </div>
+  <div class="row">
+    <label class="lbl">profile</label>
+    <input type="text" id="profile" value="driving-car" />
+  </div>
+  <div class="row">
+    <label class="lbl">底图</label>
+    <select id="basemap">
+      <option value="amap" selected>高德路网（GCJ-02）</option>
+      <option value="osm">OpenStreetMap（WGS84）</option>
+      <option value="none">无底图（纯椭球）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label class="lbl">纠偏</label>
+    <label style="flex:1;color:#222">
+      <input type="checkbox" id="gcj" checked /> 高德 GCJ-02 与 WGS84 互转
+    </label>
+  </div>
+
+  <div id="tab-route">
+    <div class="row">
+      <label class="lbl">偏好</label>
+      <select id="preference">
+        <option value="recommended">recommended</option>
+        <option value="fastest" selected>fastest</option>
+        <option value="shortest">shortest</option>
+      </select>
+    </div>
+    <div class="pts" id="pts">起点/终点：在地球上点击选点</div>
+    <div class="result" id="route-result"></div>
+  </div>
+
+  <div id="tab-iso" style="display:none">
+    <div class="row">
+      <label class="lbl">范围类型</label>
+      <select id="range-type">
+        <option value="time" selected>time（秒）</option>
+        <option value="distance">distance（米）</option>
+      </select>
+    </div>
+    <div class="row">
+      <label class="lbl">范围值</label>
+      <input type="number" id="range-value" value="300" min="1" step="1" />
+    </div>
+    <div class="pts" id="iso-pts">中心点：在地球上点击选点</div>
+    <div class="result" id="iso-result"></div>
+  </div>
+
+  <div class="row" style="margin-top:8px">
+    <button class="act secondary" id="demo">演示</button>
+    <button class="act secondary" id="clear">清空</button>
+    <span id="loading" style="display:none;color:#777">计算中…</span>
+  </div>
+  <div id="error"></div>
+  <div id="hint"></div>
+</div>
+
+<script>
+// ---------- 高德 GCJ-02 与 WGS84 互转（ORS 数据是 WGS84，高德瓦片是 GCJ-02） ----------
+const PI = Math.PI, A = 6378245.0, EE = 0.00669342162296594323;
+
+function outOfChina(lat, lng) {
+  return (lng < 72.004 || lng > 137.8347) || (lat < 0.8293 || lat > 55.8271);
+}
+function transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(y * PI) + 40.0 * Math.sin(y / 3.0 * PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(y / 12.0 * PI) + 320 * Math.sin(y * PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+function transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(x * PI) + 40.0 * Math.sin(x / 3.0 * PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(x / 12.0 * PI) + 300.0 * Math.sin(x / 30.0 * PI)) * 2.0 / 3.0;
+  return ret;
+}
+function wgs84ToGcj02(lat, lng) {
+  if (outOfChina(lat, lng)) return [lat, lng];
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((A * (1 - EE)) / (magic * sqrtMagic) * PI);
+  dLng = (dLng * 180.0) / (A / sqrtMagic * Math.cos(radLat) * PI);
+  return [lat + dLat, lng + dLng];
+}
+function gcj02ToWgs84(lat, lng) {
+  if (outOfChina(lat, lng)) return [lat, lng];
+  let wgsLat = lat, wgsLng = lng;
+  for (let i = 0; i < 5; i++) {
+    const g = wgs84ToGcj02(wgsLat, wgsLng);
+    wgsLat -= g[0] - lat;
+    wgsLng -= g[1] - lng;
+  }
+  return [wgsLat, wgsLng];
+}
+
+// ---------- ORS 编码 polyline 解码（precision=5） ----------
+function decodePolyline(str, precision) {
+  const factor = Math.pow(10, precision || 5);
+  let index = 0, lat = 0, lng = 0;
+  const coordinates = [];
+  while (index < str.length) {
+    let byte = 0, shift = 0, result = 0;
+    do {
+      byte = str.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    shift = 0; result = 0;
+    do {
+      byte = str.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+    coordinates.push([lat / factor, lng / factor]); // [lat, lng]
+  }
+  return coordinates;
+}
+
+// ---------- 面板元素 ----------
+const baseEl = document.getElementById('base');
+const profileEl = document.getElementById('profile');
+const prefEl = document.getElementById('preference');
+const basemapEl = document.getElementById('basemap');
+const gcjToggle = document.getElementById('gcj');
+const rangeTypeEl = document.getElementById('range-type');
+const rangeValueEl = document.getElementById('range-value');
+const ptsEl = document.getElementById('pts');
+const isoPtsEl = document.getElementById('iso-pts');
+const routeResultEl = document.getElementById('route-result');
+const isoResultEl = document.getElementById('iso-result');
+const errorEl = document.getElementById('error');
+const loadingEl = document.getElementById('loading');
+const hintEl = document.getElementById('hint');
+
+let activeTab = 'route';
+
+function showError(msg) {
+  errorEl.style.display = 'block';
+  errorEl.textContent = msg;
+}
+function clearError() {
+  errorEl.style.display = 'none';
+  errorEl.textContent = '';
+}
+
+// 高德底图是 GCJ-02 坐标系，ORS 结果是 WGS84，两者之间需要纠偏
+const useGcj = () => gcjToggle.checked && basemapEl.value === 'amap';
+const toMapCoord = (lat, lng) => useGcj() ? wgs84ToGcj02(lat, lng) : [lat, lng];
+const toWgsCoord = (lat, lng) => useGcj() ? gcj02ToWgs84(lat, lng) : [lat, lng];
+
+// ---------- Cesium 地球 ----------
+let viewer;
+try {
+  viewer = new Cesium.Viewer('cesiumContainer', {
+    baseLayer: false,        // 不使用 Cesium Ion 默认影像，避免需要 token
+    baseLayerPicker: false,
+    geocoder: false,
+    homeButton: false,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    animation: false,
+    timeline: false,
+    fullscreenButton: false,
+    infoBox: false,
+    selectionIndicator: false,
+    terrainProvider: new Cesium.EllipsoidTerrainProvider() // 无 Ion token 时用椭球体（无地形起伏）
+  });
+} catch (e) {
+  showError('Cesium 初始化失败：' + e.message + '\n（需要能访问 CDN；建议用 http 方式打开本页）');
+}
+
+if (viewer) {
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#e8eef6');
+  viewer.scene.globe.depthTestAgainstTerrain = true;
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(120.70, 31.30, 11000),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-50), roll: 0 }
+  });
+}
+
+// ---------- 底图 ----------
+function amapProvider() {
+  return new Cesium.UrlTemplateImageryProvider({
+    url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+    subdomains: ['1', '2', '3', '4'],
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    maximumLevel: 18,
+    credit: '© 高德地图'
+  });
+}
+function osmProvider() {
+  return new Cesium.UrlTemplateImageryProvider({
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    maximumLevel: 19,
+    credit: '© OpenStreetMap contributors'
+  });
+}
+
+let baseImagery = null;
+function setBaseLayer(kind) {
+  if (!viewer) return;
+  if (baseImagery) { viewer.imageryLayers.remove(baseImagery, true); baseImagery = null; }
+  if (kind === 'amap') baseImagery = viewer.imageryLayers.addImageryProvider(amapProvider());
+  else if (kind === 'osm') baseImagery = viewer.imageryLayers.addImageryProvider(osmProvider());
+}
+
+// ---------- 叠加物 ----------
+let routePoints = [];   // WGS84 [lat, lng]
+let isoCenter = null;   // WGS84 [lat, lng]
+const routeEntities = [];
+const isoEntities = [];
+
+function removeEntities(arr) {
+  arr.forEach(e => viewer && viewer.entities.remove(e));
+  arr.length = 0;
+}
+
+function pointEntity(lat, lng, color, text) {
+  const c = toMapCoord(lat, lng);
+  return viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(c[1], c[0]),
+    point: { pixelSize: 11, color: color, outlineColor: Cesium.Color.WHITE, outlineWidth: 2 },
+    label: {
+      text: text, font: '13px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -22),
+      showBackground: true, backgroundColor: Cesium.Color.WHITE.withAlpha(0.85), fillColor: Cesium.Color.BLACK
+    }
+  });
+}
+
+function renderRouteMarkers() {
+  routeEntities.filter(e => e.__marker).forEach(e => { viewer.entities.remove(e); routeEntities.splice(routeEntities.indexOf(e), 1); });
+  routePoints.forEach((p, i) => {
+    const e = pointEntity(p[0], p[1], i === 0 ? Cesium.Color.fromCssColorString('#1e8e3e') : Cesium.Color.fromCssColorString('#d93025'), i === 0 ? '起点' : '终点');
+    e.__marker = true;
+    routeEntities.push(e);
+  });
+  ptsEl.textContent = routePoints.length
+    ? routePoints.map((p, i) => `${i === 0 ? '起点' : '终点'} WGS84: ${p[0].toFixed(5)}, ${p[1].toFixed(5)}`).join('\n')
+    : '起点/终点：在地球上点击选点';
+}
+
+function renderIsoCenter() {
+  removeEntities(isoEntities);
+  if (isoCenter) isoEntities.push(pointEntity(isoCenter[0], isoCenter[1], Cesium.Color.fromCssColorString('#f29900'), '中心点'));
+  isoPtsEl.textContent = isoCenter
+    ? `中心点 WGS84: ${isoCenter[0].toFixed(5)}, ${isoCenter[1].toFixed(5)}`
+    : '中心点：在地球上点击选点';
+}
+
+function clearOverlays() {
+  removeEntities(routeEntities);
+  removeEntities(isoEntities);
+  routePoints = [];
+  isoCenter = null;
+  routeResultEl.style.display = 'none';
+  isoResultEl.style.display = 'none';
+  clearError();
+  renderRouteMarkers();
+  renderIsoCenter();
+}
+
+function zoomToRect(west, south, east, north) {
+  const padLat = Math.max((north - south) * 0.35, 0.0025);
+  const padLng = Math.max((east - west) * 0.35, 0.0025);
+  viewer.camera.flyTo({
+    destination: Cesium.Rectangle.fromDegrees(west - padLng, south - padLat, east + padLng, north + padLat),
+    duration: 0.9
+  });
+}
+
+function pickGlobe(screenPos) {
+  const scene = viewer.scene;
+  const ray = viewer.camera.getPickRay(screenPos);
+  if (ray) {
+    const picked = scene.globe.pick(ray, scene);
+    if (picked) return picked;
+  }
+  return viewer.camera.pickEllipsoid(screenPos, scene.globe.ellipsoid);
+}
+
+// ---------- 路线规划 ----------
+async function computeRoute() {
+  const base = baseEl.value.replace(/\/+$/, '');
+  const body = {
+    coordinates: routePoints.map(p => [p[1], p[0]]), // ORS 需要 [lon, lat]
+    preference: prefEl.value,
+    instructions: true
+  };
+
+  loadingEl.style.display = 'inline';
+  routeResultEl.style.display = 'none';
+  clearError();
+  try {
+    const resp = await fetch(`${base}/v2/directions/${encodeURIComponent(profileEl.value.trim())}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2)); return; }
+    drawRoute(data);
+  } catch (err) {
+    showError('请求失败：' + err.message + '\n（确认服务已启动、地址正确，且允许跨域）');
+  } finally {
+    loadingEl.style.display = 'none';
+  }
+}
+
+function drawRoute(data) {
+  // ORS v2 返回 {metadata, routes, bbox}，routes[0].geometry 是 encoded polyline；
+  // 同时兼容 GeoJSON FeatureCollection 形状。
+  let coords = [];
+  let summary = {};
+
+  if (Array.isArray(data.routes) && data.routes.length) {
+    const route = data.routes[0];
+    summary = route.summary || {};
+    const geom = route.geometry;
+    coords = typeof geom === 'string'
+      ? decodePolyline(geom, 5)
+      : ((geom && geom.coordinates) || []).map(c => [c[1], c[0]]);
+  } else if (data.features && data.features[0]) {
+    const feature = data.features[0];
+    summary = (feature.properties && feature.properties.summary) || {};
+    const geom = feature.geometry;
+    coords = typeof geom === 'string'
+      ? decodePolyline(geom, 5)
+      : ((geom && geom.coordinates) || []).map(c => [c[1], c[0]]);
+  }
+
+  if (!coords.length) { showError('未解析到路线几何数据：\n' + JSON.stringify(data).slice(0, 800)); return; }
+
+  const flat = [];
+  let west = 180, south = 90, east = -180, north = -90;
+  coords.forEach(c => {
+    const m = toMapCoord(c[0], c[1]);
+    flat.push(m[1], m[0]);
+    west = Math.min(west, m[1]); east = Math.max(east, m[1]);
+    south = Math.min(south, m[0]); north = Math.max(north, m[0]);
+  });
+
+  routeEntities.push(viewer.entities.add({
+    polyline: {
+      positions: Cesium.Cartesian3.fromDegreesArray(flat),
+      width: 6,
+      clampToGround: true,
+      material: new Cesium.PolylineOutlineMaterialProperty({
+        color: Cesium.Color.fromCssColorString('#1a73e8'),
+        outlineWidth: 2,
+        outlineColor: Cesium.Color.WHITE
+      })
+    }
+  }));
+
+  zoomToRect(west, south, east, north);
+
+  const dist = summary.distance != null ? (summary.distance / 1000).toFixed(2) + ' km' : '-';
+  const dur = summary.duration != null ? formatDuration(summary.duration) : '-';
+  routeResultEl.style.display = 'block';
+  routeResultEl.innerHTML =
+    `<div class="big">${dist} · ${dur}</div>` +
+    `<div style="color:#555;margin-top:4px">preference=${prefEl.value}，点 ${coords.length} 个</div>`;
+}
+
+// ---------- 等时线 ----------
+async function computeIsochrone() {
+  const base = baseEl.value.replace(/\/+$/, '');
+  const rangeType = rangeTypeEl.value;
+  const rangeValue = Number(rangeValueEl.value);
+  if (!(rangeValue > 0)) { showError('范围值需为正数'); return; }
+
+  const body = {
+    locations: [[isoCenter[1], isoCenter[0]]], // ORS 需要 [lon, lat]
+    range: [rangeValue],
+    range_type: rangeType
+  };
+
+  loadingEl.style.display = 'inline';
+  isoResultEl.style.display = 'none';
+  clearError();
+  try {
+    const resp = await fetch(`${base}/v2/isochrones/${encodeURIComponent(profileEl.value.trim())}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2)); return; }
+    drawIsochrones(data, rangeType);
+  } catch (err) {
+    showError('请求失败：' + err.message + '\n（确认服务已启动、地址正确，且允许跨域）');
+  } finally {
+    loadingEl.style.display = 'none';
+  }
+}
+
+function ringPositions(ring) {
+  const flat = [];
+  ring.forEach(p => { const m = toMapCoord(p[1], p[0]); flat.push(m[1], m[0]); });
+  return Cesium.Cartesian3.fromDegreesArray(flat);
+}
+
+function polygonHierarchy(rings) {
+  const holes = rings.slice(1).map(r => new Cesium.PolygonHierarchy(ringPositions(r)));
+  return new Cesium.PolygonHierarchy(ringPositions(rings[0]), holes);
+}
+
+function drawIsochrones(data, rangeType) {
+  const features = data.features || [];
+  if (!features.length) { showError('响应里没有 features：\n' + JSON.stringify(data).slice(0, 800)); return; }
+
+  const palette = ['#1a73e8', '#1e8e3e', '#f29900', '#d93025', '#9334e6'];
+  let west = 180, south = 90, east = -180, north = -90;
+
+  features.forEach((f, i) => {
+    const geom = f.geometry || {};
+    const color = Cesium.Color.fromCssColorString(palette[i % palette.length]);
+    const polygons = geom.type === 'MultiPolygon' ? geom.coordinates : (geom.type === 'Polygon' ? [geom.coordinates] : []);
+
+    polygons.forEach(poly => {
+      isoEntities.push(viewer.entities.add({
+        polygon: {
+          hierarchy: polygonHierarchy(poly),
+          material: color.withAlpha(0.35),
+          classificationType: Cesium.ClassificationType.TERRAIN
+        }
+      }));
+      // 外环描边，便于看清边界
+      isoEntities.push(viewer.entities.add({
+        polyline: {
+          positions: ringPositions(poly[0]),
+          width: 3,
+          clampToGround: true,
+          material: color
+        }
+      }));
+    });
+
+    poly0(polygons, c => {
+      west = Math.min(west, toMapCoord(c[1], c[0])[1]); east = Math.max(east, toMapCoord(c[1], c[0])[1]);
+      south = Math.min(south, toMapCoord(c[1], c[0])[0]); north = Math.max(north, toMapCoord(c[1], c[0])[0]);
+    });
+
+    const props = f.properties || {};
+    const value = props.value;
+    const label = value == null ? '' : (rangeType === 'time' ? formatDuration(value) : (value >= 1000 ? (value / 1000).toFixed(1) + ' km' : value + ' m'));
+    if (props.center) {
+      const c = props.center;
+      isoEntities.push(pointEntity(c[1], c[0], color, label));
+    }
+  });
+
+  if (west < east && south < north) zoomToRect(west, south, east, north);
+
+  const count = features.length;
+  isoResultEl.style.display = 'block';
+  isoResultEl.innerHTML =
+    `<div class="big">${count} 个等时圈</div>` +
+    `<div style="color:#555;margin-top:4px">${rangeType === 'time' ? 'time' : 'distance'}=${rangeValueEl.value}` +
+    `${rangeType === 'time' ? ' 秒' : ' 米'}，多边形 ${features.reduce((n, f) => n + ((f.geometry.type === 'MultiPolygon') ? f.geometry.coordinates.length : 1), 0)} 个</div>`;
+}
+
+function poly0(polygons, fn) {
+  if (!polygons.length) return;
+  polygons[0][0].forEach(fn);
+}
+
+function formatDuration(seconds) {
+  const t = Math.round(seconds);
+  const h = Math.floor(t / 3600);
+  const m = Math.round((t % 3600) / 60);
+  return h > 0 ? `${h} 小时 ${m} 分` : `${m} 分`;
+}
+
+// ---------- tab 切换 ----------
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tab-route').style.display = tab === 'route' ? '' : 'none';
+  document.getElementById('tab-iso').style.display = tab === 'iso' ? '' : 'none';
+  hintEl.innerHTML = tab === 'route'
+    ? '点击地球选起点，再点一次选终点（第三次点击重新开始）。<br />苏州测试范围约：经度 120.67~120.78，纬度 31.26~31.34。'
+    : '点击地球选等时线中心点；再点一次会以新点重新计算。<br />application.yml 里 maximum_intervals=1，所以一次只能算 1 个范围。';
+  clearOverlays();
+}
+
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+// ---------- 交互绑定 ----------
+if (viewer) {
+  const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  handler.setInputAction((movement) => {
+    const cartesian = pickGlobe(movement.position);
+    if (!cartesian) return;
+    const carto = Cesium.Cartographic.fromCartesian(cartesian);
+    const wgs = toWgsCoord(Cesium.Math.toDegrees(carto.latitude), Cesium.Math.toDegrees(carto.longitude));
+
+    if (activeTab === 'route') {
+      if (routePoints.length >= 2) { removeEntities(routeEntities); routePoints = []; routeResultEl.style.display = 'none'; clearError(); }
+      routePoints.push([wgs[0], wgs[1]]);
+      renderRouteMarkers();
+      if (routePoints.length === 2) computeRoute();
+    } else {
+      isoCenter = [wgs[0], wgs[1]];
+      renderIsoCenter();
+      computeIsochrone();
+    }
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+  setBaseLayer(basemapEl.value);
+
+  basemapEl.addEventListener('change', () => {
+    setBaseLayer(basemapEl.value);
+    renderRouteMarkers();
+    renderIsoCenter();
+    if (activeTab === 'route' && routePoints.length === 2) computeRoute();
+    if (activeTab === 'iso' && isoCenter) computeIsochrone();
+  });
+  gcjToggle.addEventListener('change', () => {
+    renderRouteMarkers();
+    renderIsoCenter();
+    if (activeTab === 'route' && routePoints.length === 2) computeRoute();
+    if (activeTab === 'iso' && isoCenter) computeIsochrone();
+  });
+  prefEl.addEventListener('change', () => { if (activeTab === 'route' && routePoints.length === 2) computeRoute(); });
+  rangeTypeEl.addEventListener('change', () => { if (activeTab === 'iso' && isoCenter) computeIsochrone(); });
+  rangeValueEl.addEventListener('change', () => { if (activeTab === 'iso' && isoCenter) computeIsochrone(); });
+
+  document.getElementById('clear').addEventListener('click', clearOverlays);
+  document.getElementById('demo').addEventListener('click', () => {
+    if (activeTab === 'route') {
+      removeEntities(routeEntities);
+      routePoints = [[31.299474, 120.700108], [31.319428, 120.750079]];
+      renderRouteMarkers();
+      computeRoute();
+    } else {
+      isoCenter = [31.299474, 120.700108];
+      renderIsoCenter();
+      computeIsochrone();
+    }
+  });
+}
+
+window.addEventListener('error', (e) => showError('页面脚本错误：' + (e.message || e.error)));
+
+switchTab('route');
+</script>
+</body>
+</html>

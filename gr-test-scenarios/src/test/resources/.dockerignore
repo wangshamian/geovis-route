@@ -1,0 +1,16 @@
+# Ignore all files
+**
+# Include the following files
+!pom.xml
+!gr-engine/pom.xml
+!gr-engine/src/main
+!gr-api/pom.xml
+!gr-api/src/main/
+!gr-report-aggregation/pom.xml
+!gr-test-scenarios/pom.xml
+# Special includes
+!gr-config.yml
+!gr-test-scenarios/src/test/resources/maven-entrypoint.sh
+!gr-api/src/test/files/heidelberg.test.pbf
+!gr-api/src/test/files/vrn_gtfs_cut.zip
+!gr-api/src/main/resources/gr-config-sample.json

@@ -1,0 +1,96 @@
+package org.heigit.geovisroute.api.services;
+
+import com.google.common.primitives.Doubles;
+import com.graphhopper.util.shapes.BBox;
+import org.heigit.geovisroute.api.APIEnums;
+import org.heigit.geovisroute.api.config.ApiEngineProperties;
+import org.heigit.geovisroute.api.config.EndpointsProperties;
+import org.heigit.geovisroute.api.requests.export.ExportApiRequest;
+import org.heigit.geovisroute.common.StatusCode;
+import org.heigit.geovisroute.exceptions.InternalServerException;
+import org.heigit.geovisroute.exceptions.ParameterValueException;
+import org.heigit.geovisroute.exceptions.StatusCodeException;
+import org.heigit.geovisroute.export.ExportErrorCodes;
+import org.heigit.geovisroute.export.ExportRequest;
+import org.heigit.geovisroute.export.ExportResult;
+import org.heigit.geovisroute.routing.RoutingProfile;
+import org.heigit.geovisroute.routing.RoutingProfileManager;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ExportService extends ApiService {
+
+    @Autowired
+    public ExportService(EndpointsProperties endpointsProperties, ApiEngineProperties apiEngineProperties) {
+        this.endpointsProperties = endpointsProperties;
+        this.apiEngineProperties = apiEngineProperties;
+    }
+
+    public ExportResult generateExportFromRequest(ExportApiRequest exportApiRequest) throws StatusCodeException {
+        try {
+            ExportRequest exportRequest = this.parseExportRequest(exportApiRequest);
+            return exportRequest.computeExport();
+        } catch (StatusCodeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new StatusCodeException(StatusCode.INTERNAL_SERVER_ERROR, ExportErrorCodes.UNKNOWN);
+        }
+    }
+
+    private ExportRequest parseExportRequest(ExportApiRequest exportApiRequest) throws StatusCodeException {
+        ExportRequest exportRequest = new ExportRequest();
+        exportRequest.setProfile(parseRoutingProfile(exportApiRequest.getProfileName()));
+        if (exportApiRequest.hasId())
+            exportRequest.setId(exportApiRequest.getId());
+
+        exportRequest.setProfileType(parseProfileType(exportApiRequest.getProfile()));
+        exportRequest.setBoundingBox(convertBBox(exportApiRequest.getBbox()));
+        exportRequest.setAdditionalEdgeInfo(exportApiRequest.additionalInfo());
+        exportRequest.setTopoJson(exportApiRequest.getResponseType().equals(APIEnums.ExportResponseType.TOPOJSON));
+        exportRequest.setUseRealGeometry(exportApiRequest.getGeometry());
+
+        return exportRequest;
+    }
+
+    private static RoutingProfile parseRoutingProfile(String profileName) throws InternalServerException {
+        RoutingProfile rp = RoutingProfileManager.getInstance().getRoutingProfile(profileName);
+        if (rp == null)
+            throw new InternalServerException(ExportErrorCodes.UNKNOWN, "Unable to find an appropriate routing profile.");
+        return rp;
+    }
+
+    private static int parseProfileType(APIEnums.Profile profile) throws ParameterValueException {
+        int profileType = -1;
+        try {
+            profileType = convertRouteProfileType(profile);
+        } catch (Exception e) {
+            throw new ParameterValueException(ExportErrorCodes.INVALID_PARAMETER_VALUE, ExportApiRequest.PARAM_PROFILE);
+        }
+        return profileType;
+    }
+
+    BBox convertBBox(List<List<Double>> coordinates) throws ParameterValueException {
+        if (coordinates.size() != 2) {
+            throw new ParameterValueException(ExportErrorCodes.INVALID_PARAMETER_VALUE, ExportApiRequest.PARAM_BBOX);
+        }
+
+        double[] coords = {};
+
+        for (List<Double> coord : coordinates) {
+            coords = Doubles.concat(coords, convertSingleCoordinate(coord));
+        }
+
+        return new BBox(coords);
+    }
+
+    private double[] convertSingleCoordinate(List<Double> coordinate) throws ParameterValueException {
+        if (coordinate.size() != 2) {
+            throw new ParameterValueException(ExportErrorCodes.INVALID_PARAMETER_VALUE, ExportApiRequest.PARAM_BBOX);
+        }
+
+        return new double[]{coordinate.get(0), coordinate.get(1)};
+    }
+}

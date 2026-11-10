@@ -1,0 +1,16 @@
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.HeavyVehicleGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.HereTrafficGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.WayCategoryGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.WaySurfaceTypeGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.HillIndexGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.WheelchairGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.GreenIndexGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.NoiseIndexGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.CsvGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.TollwaysGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.TrailDifficultyScaleGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.BordersGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.OsmIdGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.RoadAccessRestrictionsGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.SpeedGraphStorageBuilder
+org.heigit.geovisroute.routing.graphhopper.extensions.storages.builders.ShadowIndexGraphStorageBuilder

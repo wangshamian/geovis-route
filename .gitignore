@@ -1,0 +1,40 @@
+.idea/
+*.iml
+*.ipr
+.DS_Store
+**/.m2/
+*.code-workspace
+.vscode
+!.mvn/wrapper/maven-wrapper.jar
+graphs/
+graph-repo/
+graphs-*/
+target/
+logs/
+elevation_cache/
+cgiar_cache/
+node_modules/
+
+# jqwik
+.jqwik-database
+
+# Ignore folders generated from docker
+/config/
+/files/
+
+# Ignore all gr-config files except for the sample one, useful for development and testing
+gr-api/src/main/resources/gr-config*
+gr-config*
+ors-docker/**
+
+envs/
+gr-config-repo/
+
+# docs stuff
+docs/.vitepress/dist
+docs/.vitepress/cache
+/.integration-scenarios/debian-12-jar-mvn/graphs_volume/
+/.integration-scenarios/debian-12-jar-mvn/tmp/
+
+gatling-results/**
+*.osm.pbf
