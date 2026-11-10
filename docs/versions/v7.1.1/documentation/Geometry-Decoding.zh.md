@@ -1,0 +1,202 @@
+# 几何解码
+
+当响应中包含几何信息时，数据可能会被编码成单个字符串。这就是所谓的[编码折线（encoded polyline）](https://developers.google.com/maps/documentation/utilities/polylinealgorithm)。
+如果没有请求额外的高程数据，可以用标准的 polyline 解码器进行解码，例如 Mapbox 或其他来源提供的解码器。
+
+当你请求额外的高程数据时，这个编码字符串无法用标准 polyline 解码器解码。
+原因在于，除纬度和经度值之外，折线中还包含了高程数据。
+要解码 _X,Y_ 和 _X,Y,Z_ 折线，解码器需要知道该几何信息是否包含高程。
+下面给出了解码 _X,Y,Z_ 折线的示例：
+
+## Java
+
+```java
+import org.json.JSONArray;
+
+public class GeometryDecoder {
+
+    private static JSONArray decodeGeometry(String encodedGeometry, boolean inclElevation) {
+        JSONArray geometry = new JSONArray();
+        int len = encodedGeometry.length();
+        int index = 0;
+        int lat = 0;
+        int lng = 0;
+        int ele = 0;
+
+        while (index < len) {
+            int result = 1;
+            int shift = 0;
+            int b;
+            do {
+                b = encodedGeometry.charAt(index++) - 63 - 1;
+                result += b << shift;
+                shift += 5;
+            } while (b >= 0x1f);
+            lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+            result = 1;
+            shift = 0;
+            do {
+                b = encodedGeometry.charAt(index++) - 63 - 1;
+                result += b << shift;
+                shift += 5;
+            } while (b >= 0x1f);
+            lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+
+            if(inclElevation){
+                result = 1;
+                shift = 0;
+                do {
+                    b = encodedGeometry.charAt(index++) - 63 - 1;
+                    result += b << shift;
+                    shift += 5;
+                } while (b >= 0x1f);
+                ele += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+            }
+
+            JSONArray location = new JSONArray();
+            try {
+                location.put(lat / 1E5);
+                location.put(lng / 1E5);
+                if(inclElevation){
+                    location.put((float) (ele / 100));
+                }
+                geometry.put(location);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+        return geometry;
+    }
+}
+```
+
+## JavaScript
+
+```js
+  /**
+   * Decode an x,y or x,y,z encoded polyline
+   * @param {*} encodedPolyline
+   * @param {Boolean} includeElevation - true for x,y,z polyline
+   * @returns {Array} of coordinates
+   */
+  decodePolyline: (encodedPolyline, includeElevation) => {
+    // array that holds the points
+    let points = []
+    let index = 0
+    const len = encodedPolyline.length
+    let lat = 0
+    let lng = 0
+    let ele = 0
+    while (index < len) {
+      let b
+      let shift = 0
+      let result = 0
+      do {
+        b = encodedPolyline.charAt(index++).charCodeAt(0) - 63 // finds ascii
+        // and subtract it by 63
+        result |= (b & 0x1f) << shift
+        shift += 5
+      } while (b >= 0x20)
+
+      lat += ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1))
+      shift = 0
+      result = 0
+      do {
+        b = encodedPolyline.charAt(index++).charCodeAt(0) - 63
+        result |= (b & 0x1f) << shift
+        shift += 5
+      } while (b >= 0x20)
+      lng += ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1))
+
+      if (includeElevation) {
+        shift = 0
+        result = 0
+        do {
+          b = encodedPolyline.charAt(index++).charCodeAt(0) - 63
+          result |= (b & 0x1f) << shift
+          shift += 5
+        } while (b >= 0x20)
+        ele += ((result & 1) !== 0 ? ~(result >> 1) : (result >> 1))
+      }
+      try {
+        let location = [(lat / 1E5), (lng / 1E5)]
+        if (includeElevation) location.push((ele / 100))
+        points.push(location)
+      } catch (e) {
+        console.log(e)
+      }
+    }
+    return points
+  }
+```
+
+## Python
+
+```python
+def decode_polyline(polyline, is3d=False):
+    """Decodes a Polyline string into a GeoJSON geometry.
+    :param polyline: An encoded polyline, only the geometry.
+    :type polyline: string
+    :param is3d: Specifies if geometry contains Z component.
+    :type is3d: boolean
+    :returns: GeoJSON Linestring geometry
+    :rtype: dict
+    """
+    points = []
+    index = lat = lng = z = 0
+
+    while index < len(polyline):
+        result = 1
+        shift = 0
+        while True:
+            b = ord(polyline[index]) - 63 - 1
+            index += 1
+            result += b << shift
+            shift += 5
+            if b < 0x1F:
+                break
+        lat += (~result >> 1) if (result & 1) != 0 else (result >> 1)
+
+        result = 1
+        shift = 0
+        while True:
+            b = ord(polyline[index]) - 63 - 1
+            index += 1
+            result += b << shift
+            shift += 5
+            if b < 0x1F:
+                break
+        lng += ~(result >> 1) if (result & 1) != 0 else (result >> 1)
+
+        if is3d:
+            result = 1
+            shift = 0
+            while True:
+                b = ord(polyline[index]) - 63 - 1
+                index += 1
+                result += b << shift
+                shift += 5
+                if b < 0x1F:
+                    break
+            if (result & 1) != 0:
+                z += ~(result >> 1)
+            else:
+                z += result >> 1
+
+            points.append(
+                [
+                    round(lng * 1e-5, 6),
+                    round(lat * 1e-5, 6),
+                    round(z * 1e-2, 1),
+                ]
+            )
+
+        else:
+            points.append([round(lng * 1e-5, 6), round(lat * 1e-5, 6)])
+
+    geojson = {u"type": u"LineString", u"coordinates": points}
+
+    return geojson
+```
