@@ -13,6 +13,7 @@ Openrouteservice 提供了一组用于不同空间用途的端点：
 * [Isochrones 服务](isochrones/index.zh.md)：获取从指定位置出发的可达区域
 * [Matrix 服务](matrix/index.zh.md)：获取一对多、多对一以及多对多的时间和距离矩阵
 * [Snapping 服务](snapping/index.zh.md)：将坐标吸附到路网上
+* [越野路径服务](offroad/index.zh.md)：不依赖路网，依据地形坡度在任意起终点之间搜索可行路径（本实例扩展端点）
 
 ## 技术端点
 

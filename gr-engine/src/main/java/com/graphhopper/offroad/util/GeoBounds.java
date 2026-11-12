@@ -28,19 +28,15 @@ public class GeoBounds {
     }
 
     /**
-     * 扩大现有范围（按比例）
+     * 按距离（米）向四周扩展范围，用于构造走廊式搜索边界。
      */
-    public GeoBounds expandBoundsByRatio(double ratio) {
-        double centerLng = (this.minLon + this.maxLon) / 2;
+    public GeoBounds expandBoundsByMeters(double meters) {
         double centerLat = (this.minLat + this.maxLat) / 2;
-
-        double lngRange = this.maxLon - this.minLon;
-        double latRange = this.maxLat - this.minLat;
-
-        double newLngRange = lngRange * ratio;
-        double newLatRange = latRange * ratio;
-
-        return new GeoBounds(centerLng - newLngRange / 2, centerLng + newLngRange / 2, centerLat - newLatRange / 2, centerLat + newLatRange / 2);
+        // 经度方向 1 度对应的米数随纬度收缩，用平均纬度换算
+        double lonScale = 111320.0 * Math.max(0.01, Math.cos(Math.toRadians(centerLat)));
+        double latDelta = meters / 111320.0;
+        double lonDelta = meters / lonScale;
+        return new GeoBounds(minLon - lonDelta, maxLon + lonDelta, minLat - latDelta, maxLat + latDelta);
     }
 
     /**

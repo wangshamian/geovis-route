@@ -43,6 +43,8 @@ public class BuildProperties {
     private PreparationProperties preparation = new PreparationProperties();
     @JsonProperty("ext_storages")
     private Map<String, ExtendedStorageProperties> extStorages = new LinkedHashMap<>();
+    @JsonProperty("custom_roads")
+    private CustomRoadNetworkProperties customRoads;
     @JsonProperty("maximum_speed_lower_bound")
     private Double maximumSpeedLowerBound;
 
@@ -66,6 +68,7 @@ public class BuildProperties {
         locationIndexSearchIterations = ofNullable(locationIndexSearchIterations).orElse(other.locationIndexSearchIterations);
         encoderOptions.merge(other.encoderOptions);
         preparation.merge(other.preparation);
+        customRoads = ofNullable(customRoads).orElse(other.customRoads);
         for (Map.Entry<String, ExtendedStorageProperties> entry : other.extStorages.entrySet()) {
             if (extStorages.containsKey(entry.getKey())) {
                 extStorages.get(entry.getKey()).merge(entry.getValue());

@@ -48,6 +48,7 @@
                 <includes>
                     <include>logs/*</include>
                     <include>META-INF/*</include>
+                    <include>static/**</include>
                     <include>*.properties</include>
                     <include>*.yml</include>
                     <include>gr-config*.json</include>

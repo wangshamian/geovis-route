@@ -1,11 +1,13 @@
 package org.heigit.geovisroute.routing.graphhopper.extensions;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.graphhopper.GraphHopper;
 import com.graphhopper.GraphHopperConfig;
 import com.graphhopper.config.CHProfile;
 import com.graphhopper.config.LMProfile;
 import com.graphhopper.config.Profile;
 import com.graphhopper.json.Statement;
+import com.graphhopper.reader.dem.ElevationProvider;
 import com.graphhopper.routing.ev.VehicleSpeed;
 import com.graphhopper.util.CustomModel;
 import com.graphhopper.util.PMap;
@@ -31,6 +33,27 @@ public class GRGraphHopperConfig extends GraphHopperConfig {
     private List<LMProfile> coreLMProfiles = new ArrayList<>();
     private List<Profile> fastisochroneProfiles = new ArrayList<>();
     private static final Logger LOGGER = org.apache.log4j.Logger.getLogger(GRGraphHopperConfig.class.getName());
+
+    /**
+     * 仅根据引擎高程配置创建 ElevationProvider，不写入路网图。
+     * 供越野路径等按需查询高程的功能使用，避免把现有 2D 图重建为 3D 图。
+     */
+    public static ElevationProvider createElevationProvider(ElevationProperties elevationProps) {
+        if (elevationProps == null || elevationProps.getProvider() == null || elevationProps.getCachePath() == null) {
+            LOGGER.warn("Elevation provider or cache path is null. Elevation deactivated.");
+            return ElevationProvider.NOOP;
+        }
+        GRGraphHopperConfig ghConfig = new GRGraphHopperConfig();
+        ghConfig.putObject("graph.elevation.provider", StringUtility.trimQuotes(elevationProps.getProvider()));
+        ghConfig.putObject("graph.elevation.cache_dir", StringUtility.trimQuotes(elevationProps.getCachePath().toString()));
+        if (elevationProps.getDataAccess() != null) {
+            ghConfig.putObject("graph.elevation.dataaccess", StringUtility.trimQuotes(elevationProps.getDataAccess().toString()));
+        }
+        if (elevationProps.getCacheClear() != null) {
+            ghConfig.putObject("graph.elevation.clear", elevationProps.getCacheClear());
+        }
+        return GraphHopper.createElevationProvider(ghConfig);
+    }
 
     public static GRGraphHopperConfig createGHSettings(ProfileProperties profile, EngineProperties engineConfig, String graphLocation) {
         GRGraphHopperConfig ghConfig = new GRGraphHopperConfig();
@@ -298,7 +321,12 @@ public class GRGraphHopperConfig extends GraphHopperConfig {
 
         // 并非由车辆本身隐含的 ORS 专用编码值
         switch (vehicle.toLowerCase()) {
-            case "heavyvehicle" -> encodedValues.add("hgv");
+            case "heavyvehicle" -> {
+                encodedValues.add("hgv");
+                // 限高/限宽/限重等属性存放在这些编码值中，custom_roads 的 overlay 模式
+                // 需要它们才能按几何覆盖已有 OSM 边的限制属性。
+                encodedValues.addAll(List.of("max_height", "max_width", "max_weight", "max_length", "max_axle_load"));
+            }
             case "hiking_ors", "hike" -> encodedValues.add("hike_rating");
             default -> {
             }

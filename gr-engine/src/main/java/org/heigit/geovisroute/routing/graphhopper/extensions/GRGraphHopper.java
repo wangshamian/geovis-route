@@ -39,6 +39,7 @@ import com.graphhopper.util.details.PathDetailsBuilderFactory;
 import org.geotools.feature.SchemaException;
 import org.heigit.geovisroute.common.TravelRangeType;
 import org.heigit.geovisroute.config.EngineProperties;
+import org.heigit.geovisroute.config.profile.CustomRoadNetworkProperties;
 import org.heigit.geovisroute.config.profile.ProfileProperties;
 import org.heigit.geovisroute.fastisochrones.Contour;
 import org.heigit.geovisroute.fastisochrones.Eccentricity;
@@ -152,6 +153,22 @@ public class GRGraphHopper extends GraphHopperGtfs {
         config = ghConfig;
 
         return ret;
+    }
+
+    @Override
+    protected void importOSM() {
+        super.importOSM();
+
+        if (profileProperties == null || profileProperties.getBuild() == null) {
+            return;
+        }
+        CustomRoadNetworkProperties customRoads = profileProperties.getBuild().getCustomRoads();
+        if (customRoads == null || customRoads.getFile() == null || customRoads.getFile().isBlank()) {
+            return;
+        }
+        LOGGER.info("Importing custom road network from '{}'", customRoads.getFile());
+        new CustomRoadNetworkImporter(getBaseGraph(), getEncodingManager(), getOSMParsers())
+                .importRoads(customRoads);
     }
 
     @Override

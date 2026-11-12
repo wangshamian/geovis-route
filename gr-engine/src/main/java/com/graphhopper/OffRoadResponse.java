@@ -16,6 +16,8 @@ public class OffRoadResponse{
     private PMap hintsMap = new PMap();
     private PointList offRoadPoints;
     private JsonFeature barrierFeature;
+    // 坡度超限的网格数量（合并前）
+    private int barrierCount;
 //    private String debugInfo = "";
 
     public OffRoadResponse() {
@@ -35,6 +37,14 @@ public class OffRoadResponse{
 
     public JsonFeature getBarrierFeature() {
         return barrierFeature;
+    }
+
+    public void setBarrierCount(int barrierCount) {
+        this.barrierCount = barrierCount;
+    }
+
+    public int getBarrierCount() {
+        return barrierCount;
     }
 
     public void setHints(PMap hints) {

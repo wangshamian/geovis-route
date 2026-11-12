@@ -20,6 +20,12 @@ spring:
   mvc:
     servlet:
       path: /
+  # 静态页面禁止浏览器缓存，避免打包后页面/脚本更新了却仍加载旧版本
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-store: true
 
 ##### Settings related to springdoc #####
 springdoc:
@@ -82,7 +88,7 @@ ors:
       enabled: true
       attribution: openrouteservice.org, OpenStreetMap contributors
       maximum_locations: 2
-      maximum_intervals: 1
+      maximum_intervals: 5
       allow_compute_area: true
       maximum_range_distance_default: 50000
       maximum_range_distance:

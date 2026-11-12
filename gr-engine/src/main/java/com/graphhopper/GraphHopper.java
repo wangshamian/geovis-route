@@ -724,7 +724,7 @@ public class GraphHopper {
         return result;
     }
 
-    private static ElevationProvider createElevationProvider(GraphHopperConfig ghConfig) {
+    public static ElevationProvider createElevationProvider(GraphHopperConfig ghConfig) {
         String eleProviderStr = toLowerCase(ghConfig.getString("graph.elevation.provider", "noop"));
 
         if (ghConfig.has("graph.elevation.calcmean"))

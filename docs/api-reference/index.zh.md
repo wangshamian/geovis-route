@@ -8,6 +8,7 @@
 这里并未完整覆盖单个端点的全部请求参数等内容。
 但另一方面，这里也包含了那些在我们线上 API 中不可用、而仅在你自行运行或托管的实例上可用的端点的信息，
 例如 [Export](endpoints/export/index.zh.md)、[Health](endpoints/health/index.zh.md) 和 [Status](endpoints/status/index.zh.md)。
+本实例还额外提供基于地形坡度的 [越野路径](endpoints/offroad/index.zh.md) 端点（`POST /v2/offroad`）。
 
 如果你正在开发 openrouteservice 或运行自己的实例，随附的 [Swagger-UI](#swagger-ui) 可能会对你有所帮助。
 
