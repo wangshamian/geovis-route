@@ -41,6 +41,10 @@ public class RequestProfileParamsRestrictions {
     public static final String PARAM_MAXIMUM_SLOPED_KERB = "maximum_sloped_kerb";
     public static final String PARAM_MAX_INCLINE = "maximum_incline";
     public static final String PARAM_MIN_WIDTH = "minimum_width";
+    // 军车通过性参数
+    public static final String PARAM_MAX_GRADIENT = "maximum_gradient";
+    public static final String PARAM_MAX_FORD_DEPTH = "maximum_ford_depth";
+    public static final String PARAM_MAX_BRIDGE_LOAD = "maximum_bridge_load";
 
     @Schema(name = PARAM_LENGTH, description = "长度限制，单位：米。",
             extensions = {@Extension(name = "validWhen", properties = {
@@ -90,6 +94,36 @@ public class RequestProfileParamsRestrictions {
     private Float weight;
     @JsonIgnore
     private boolean hasWeight = false;
+
+    @Schema(name = PARAM_MAX_GRADIENT, description = "车辆最大爬坡能力，单位：百分比（%），例如 30 表示 30%。",
+            extensions = {@Extension(name = "validWhen", properties = {
+                    @ExtensionProperty(name = "ref", value = "profile"),
+                    @ExtensionProperty(name = "value", value = "driving-military")}
+            )}, example = "30")
+    @JsonProperty(PARAM_MAX_GRADIENT)
+    private Float maxGradient;
+    @JsonIgnore
+    private boolean hasMaxGradient = false;
+
+    @Schema(name = PARAM_MAX_FORD_DEPTH, description = "车辆最大涉水深度，单位：米。",
+            extensions = {@Extension(name = "validWhen", properties = {
+                    @ExtensionProperty(name = "ref", value = "profile"),
+                    @ExtensionProperty(name = "value", value = "driving-military")}
+            )}, example = "1.2")
+    @JsonProperty(PARAM_MAX_FORD_DEPTH)
+    private Float maxFordDepth;
+    @JsonIgnore
+    private boolean hasMaxFordDepth = false;
+
+    @Schema(name = PARAM_MAX_BRIDGE_LOAD, description = "车辆可通过的桥梁最大承载，单位：吨。",
+            extensions = {@Extension(name = "validWhen", properties = {
+                    @ExtensionProperty(name = "ref", value = "profile"),
+                    @ExtensionProperty(name = "value", value = "driving-military")}
+            )}, example = "60")
+    @JsonProperty(PARAM_MAX_BRIDGE_LOAD)
+    private Float maxBridgeLoad;
+    @JsonIgnore
+    private boolean hasMaxBridgeLoad = false;
 
     @Schema(name = PARAM_HAZMAT, description = "指定是否使用适用于危险品运输的路线规划，并避开水源保护区。默认值为 `false`。 ",
             extensions = {@Extension(name = "validWhen", properties = {
@@ -213,6 +247,33 @@ public class RequestProfileParamsRestrictions {
         hasWeight = true;
     }
 
+    public Float getMaxGradient() {
+        return maxGradient;
+    }
+
+    public void setMaxGradient(Float maxGradient) {
+        this.maxGradient = maxGradient;
+        this.hasMaxGradient = true;
+    }
+
+    public Float getMaxFordDepth() {
+        return maxFordDepth;
+    }
+
+    public void setMaxFordDepth(Float maxFordDepth) {
+        this.maxFordDepth = maxFordDepth;
+        this.hasMaxFordDepth = true;
+    }
+
+    public Float getMaxBridgeLoad() {
+        return maxBridgeLoad;
+    }
+
+    public void setMaxBridgeLoad(Float maxBridgeLoad) {
+        this.maxBridgeLoad = maxBridgeLoad;
+        this.hasMaxBridgeLoad = true;
+    }
+
     public void setHazardousMaterial(Boolean hazardousMaterial) {
         this.hazardousMaterial = hazardousMaterial;
         hasHazardousMaterial = true;
@@ -292,6 +353,18 @@ public class RequestProfileParamsRestrictions {
         return hasWeight;
     }
 
+    public boolean hasMaxGradient() {
+        return hasMaxGradient;
+    }
+
+    public boolean hasMaxFordDepth() {
+        return hasMaxFordDepth;
+    }
+
+    public boolean hasMaxBridgeLoad() {
+        return hasMaxBridgeLoad;
+    }
+
     public boolean getHazardousMaterial() {
         return hazardousMaterial;
     }
@@ -339,6 +412,12 @@ public class RequestProfileParamsRestrictions {
             setRestrictions.add(PARAM_WEIGHT);
         if (hasHazardousMaterial)
             setRestrictions.add(PARAM_HAZMAT);
+        if (hasMaxGradient)
+            setRestrictions.add(PARAM_MAX_GRADIENT);
+        if (hasMaxFordDepth)
+            setRestrictions.add(PARAM_MAX_FORD_DEPTH);
+        if (hasMaxBridgeLoad)
+            setRestrictions.add(PARAM_MAX_BRIDGE_LOAD);
         if (hasSurfaceType)
             setRestrictions.add(PARAM_SURFACE_TYPE);
         if (hasTrackType)

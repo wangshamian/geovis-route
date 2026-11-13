@@ -19,7 +19,11 @@ public class VehicleDimensionRestrictions {
     public static final int MAX_WIDTH = 2;
     public static final int MAX_LENGTH = 3;
     public static final int MAX_AXLE_LOAD = 4;
-    public static final int COUNT = 5;
+    // 军车通过性属性
+    public static final int MAX_GRADIENT = 5;
+    public static final int MAX_FORD_DEPTH = 6;
+    public static final int MAX_BRIDGE_LOAD = 7;
+    public static final int COUNT = 8;
 
     private VehicleDimensionRestrictions() {
     }

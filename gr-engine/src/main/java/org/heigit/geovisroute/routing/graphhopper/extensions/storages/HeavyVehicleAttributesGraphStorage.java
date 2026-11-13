@@ -22,6 +22,7 @@ import org.heigit.geovisroute.routing.graphhopper.extensions.VehicleDimensionRes
 
 public class HeavyVehicleAttributesGraphStorage implements GraphExtension {
     private static final int EF_RESTRICTION_BYTES = 2;
+    private static final int STORAGE_VERSION = 2;
     private static final String MSG_EF_RESTRICTION_IS_NOT_SUPPORTED = "EF_RESTRICTION is not supported.";
 
     private final int efVehicleType;
@@ -68,6 +69,8 @@ public class HeavyVehicleAttributesGraphStorage implements GraphExtension {
     public void flush() {
         orsEdges.setHeader(0, edgeEntryBytes);
         orsEdges.setHeader(4, edgesCount);
+        // 布局版本：新增通过性属性后，旧图的 ext_hgv 布局不再兼容
+        orsEdges.setHeader(8, STORAGE_VERSION);
         orsEdges.flush();
     }
 
@@ -85,6 +88,12 @@ public class HeavyVehicleAttributesGraphStorage implements GraphExtension {
 
         edgeEntryBytes = orsEdges.getHeader(0);
         edgesCount = orsEdges.getHeader(4);
+        int storedVersion = orsEdges.getHeader(8);
+        if (storedVersion != STORAGE_VERSION) {
+            throw new IllegalStateException("ext_hgv storage layout version " + storedVersion
+                    + " is incompatible with current version " + STORAGE_VERSION
+                    + ". Please delete the affected graphs directory and rebuild.");
+        }
         return true;
     }
 
@@ -159,10 +168,11 @@ public class HeavyVehicleAttributesGraphStorage implements GraphExtension {
         return false;
     }
 
-    private short getShort(long bytePos) {
+    private int getShort(long bytePos) {
         byte[] buffer = new byte[2];
         orsEdges.getBytes(bytePos, buffer, 2);
-        return BitUtil.LITTLE.toShort(buffer);
+        // 按无符号 16 位读取，避免坡度/涉水深度等超过 327.67 时变成负数
+        return BitUtil.LITTLE.toShort(buffer) & 0xFFFF;
     }
 
     @Override

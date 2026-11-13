@@ -42,13 +42,32 @@ public class OffRoader {
      */
     private static final int DEFAULT_MAX_CELLS = 250_000;
     private static final long DEFAULT_TIMEOUT_MS = 30_000;
+    /**
+     * 混合路由需要逐格查询公路，网格数量上限单独收紧。
+     */
+    private static final int MAX_HYBRID_CELLS = 60_000;
 
     protected final ElevationProvider eleProvider;
+    /**
+     * 公路信息提供者，非空且请求开启 hybrid 时执行公路与越野混合寻路。
+     */
+    protected final RoadAccessProvider roadAccessProvider;
     protected OffRoadGrid startGrid;
     protected OffRoadGrid endGrid;
     private double maxSlope = DEFAULT_MAX_SLOPE;
     private GHPoint startPoint;
     private GHPoint endPoint;
+    /**
+     * 混合路由参数：是否启用、越野基准速度、越野段惩罚系数。
+     */
+    private boolean hybrid;
+    private double offroadSpeedKmh = 25;
+    private double offroadPenalty = 1.5;
+    /**
+     * 混合路由按时间搜索时使用的网格边长（米）与全图最大速度（km/h）。
+     */
+    private double cellSideMeters = 300;
+    private double maxSpeedKmh = 25;
     /**
      * 八邻域偏移：{dx, dy}，前四个为正交方向，后四个为斜向方向。
      */
@@ -57,7 +76,12 @@ public class OffRoader {
     };
 
     public OffRoader(ElevationProvider eleProvider) {
+        this(eleProvider, null);
+    }
+
+    public OffRoader(ElevationProvider eleProvider, RoadAccessProvider roadAccessProvider) {
         this.eleProvider = eleProvider;
+        this.roadAccessProvider = roadAccessProvider;
     }
 
     public OffRoadResponse offroad(GHRequest request) {
@@ -68,6 +92,12 @@ public class OffRoader {
         int maxCells = request.getHints().getInt("max_cells", DEFAULT_MAX_CELLS);
         long timeoutMs = request.getHints().getLong("timeout_ms", DEFAULT_TIMEOUT_MS);
         long deadline = System.currentTimeMillis() + timeoutMs;
+        // 公路与越野混合：有公路信息提供者且请求显式开启时生效
+        this.hybrid = roadAccessProvider != null && request.getHints().getBool("hybrid", false);
+        this.offroadSpeedKmh = Math.max(1, request.getHints().getDouble("offroad_speed_kmh", 25));
+        this.offroadPenalty = Math.max(1, request.getHints().getDouble("offroad_penalty", 1.5));
+        this.cellSideMeters = gridInterval;
+        this.maxSpeedKmh = offroadSpeedKmh;
 
         List<GHPoint> points = request.getPoints();
         this.startPoint = points.get(0);
@@ -118,6 +148,12 @@ public class OffRoader {
             throw new IllegalArgumentException(String.format(
                     "网格数量 %d 超过上限 %d，请增大 grid_interval 或缩短起终点距离", totalCells, maxCells));
         }
+        // 混合路由需要逐格查询附近公路，网格过多会显著拖慢计算
+        if (hybrid && totalCells > MAX_HYBRID_CELLS) {
+            throw new IllegalArgumentException(String.format(
+                    "混合路由网格数量 %d 超过上限 %d，请增大 grid_interval 或缩短起终点距离", totalCells, MAX_HYBRID_CELLS));
+        }
+        this.cellSideMeters = cellSide;
 
         List<OffRoadGrid> grids = new ArrayList<>((int) totalCells);
         double cellWidth = geoBounds.getWidth() / cols;
@@ -156,7 +192,16 @@ public class OffRoader {
                             minX + offRoadGridSteps[k][1] * sampleDeltaX));
                 }
                 double slope = GeoUtils.getGridSlope(sampleCoordinates, eleProvider);
-                OffRoadGrid offRoadGrid = new OffRoadGrid(j, i, slope, center, coordinates);
+                double elevation = eleProvider.getEle(center.lat, center.lon);
+                OffRoadGrid offRoadGrid = new OffRoadGrid(j, i, slope, elevation, center, coordinates);
+                // 混合路由：标记落在公路上的网格，并记录该处公路速度
+                if (hybrid) {
+                    RoadAccessProvider.RoadAccess roadAccess = roadAccessProvider.getRoad(center.lat, center.lon);
+                    if (roadAccess != null && roadAccess.speedKmh() > 0) {
+                        offRoadGrid.roadSpeedKmh = roadAccess.speedKmh();
+                        maxSpeedKmh = Math.max(maxSpeedKmh, offRoadGrid.roadSpeedKmh);
+                    }
+                }
                 grids.add(offRoadGrid);
 
                 // 直接复用网格对象作为起终点，确保其中心点与坡度信息正确
@@ -270,7 +315,9 @@ public class OffRoader {
                         continue;
                     }
                 }
-                double stepCost = diagonal ? Math.sqrt(2) : 1;
+                double stepCost = hybrid
+                        ? hybridStepCost(nodeCurrent, child)
+                        : (diagonal ? Math.sqrt(2) : 1);
                 double tentativeG = nodeCurrent.g + stepCost;
                 // 找到更优路径才更新父节点与代价
                 if (tentativeG < child.g) {
@@ -300,6 +347,61 @@ public class OffRoader {
             node = parentOf(cellIndex, node);
         }
         Collections.reverse(pathGrids);
+
+        if (hybrid) {
+            // 混合路由的 g 即累计用时（秒），同时按公路/越野连续段切分明细
+            double roadDistance = 0;
+            double offRoadDistance = 0;
+            double segmentDistance = 0;
+            double segmentDuration = 0;
+            boolean segmentOnRoad = false;
+            OffRoadGrid segmentStart = pathGrids.get(0);
+            List<GHPoint> segmentPoints = new ArrayList<>();
+            segmentPoints.add(new GHPoint(segmentStart.center.lat, segmentStart.center.lon));
+            for (int i = 1; i < pathGrids.size(); i++) {
+                OffRoadGrid previous = pathGrids.get(i - 1);
+                OffRoadGrid current = pathGrids.get(i);
+                double meters = GeoUtils.getDistance(
+                        new GlobalCoordinates(previous.center.lat, previous.center.lon),
+                        new GlobalCoordinates(current.center.lat, current.center.lon));
+                boolean onRoad = previous.roadSpeedKmh > 0 && current.roadSpeedKmh > 0;
+                if (i == 1) {
+                    segmentOnRoad = onRoad;
+                } else if (onRoad != segmentOnRoad) {
+                    // 通行方式切换，结算上一段
+                    offRoadResponse.addSegment(new OffRoadResponse.Segment(segmentOnRoad,
+                            segmentDistance, Math.round(segmentDuration),
+                            segmentStart.center.lat, segmentStart.center.lon,
+                            previous.center.lat, previous.center.lon,
+                            new ArrayList<>(segmentPoints)));
+                    segmentDistance = 0;
+                    segmentDuration = 0;
+                    segmentOnRoad = onRoad;
+                    segmentStart = previous;
+                    segmentPoints = new ArrayList<>();
+                    segmentPoints.add(new GHPoint(previous.center.lat, previous.center.lon));
+                }
+                segmentPoints.add(new GHPoint(current.center.lat, current.center.lon));
+                segmentDistance += meters;
+                segmentDuration += hybridStepCost(previous, current);
+                if (onRoad) {
+                    roadDistance += meters;
+                } else {
+                    offRoadDistance += meters;
+                }
+            }
+            if (pathGrids.size() > 1) {
+                OffRoadGrid last = pathGrids.get(pathGrids.size() - 1);
+                offRoadResponse.addSegment(new OffRoadResponse.Segment(segmentOnRoad,
+                        segmentDistance, Math.round(segmentDuration),
+                        segmentStart.center.lat, segmentStart.center.lon,
+                        last.center.lat, last.center.lon,
+                        segmentPoints));
+            }
+            offRoadResponse.setDurationSeconds(Math.round(endNode.g));
+            offRoadResponse.setRoadDistance(roadDistance);
+            offRoadResponse.setOffRoadDistance(offRoadDistance);
+        }
 
         // 视线拉直 + 抽稀 + 平滑，消除格心连线的锯齿与绕路
         List<GHPoint> path = smoothPath(pathGrids, cellIndex, cellSide);
@@ -482,11 +584,49 @@ public class OffRoader {
 
     /**
      * 八方向移动的 octile 距离，作为一致的启发函数，保证 A* 结果最优。
+     * 混合路由按时间搜索，因此再换算为“以全图最大速度走完该距离所需秒数”。
      */
     private double heuristic(OffRoadGrid from, OffRoadGrid to) {
         int dx = Math.abs(from.x - to.x);
         int dy = Math.abs(from.y - to.y);
-        return (dx + dy) + (Math.sqrt(2) - 2) * Math.min(dx, dy);
+        double octile = (dx + dy) + (Math.sqrt(2) - 2) * Math.min(dx, dy);
+        if (!hybrid) {
+            return octile;
+        }
+        return octile * cellSideMeters / (maxSpeedKmh / 3.6);
+    }
+
+    /**
+     * 混合路由单步代价（秒）：公路段按公路速度，越野段按坡度衰减后的越野速度，
+     * 并对越野段施加惩罚，使路径在耗时接近时优先走公路。
+     */
+    private double hybridStepCost(OffRoadGrid from, OffRoadGrid to) {
+        double meters = GeoUtils.getDistance(
+                new GlobalCoordinates(from.center.lat, from.center.lon),
+                new GlobalCoordinates(to.center.lat, to.center.lon));
+        boolean onRoad = from.roadSpeedKmh > 0 && to.roadSpeedKmh > 0;
+        double speedKmh = onRoad ? Math.min(from.roadSpeedKmh, to.roadSpeedKmh) : offroadSpeed(from, to);
+        double seconds = meters / (speedKmh / 3.6);
+        return onRoad ? seconds : seconds * offroadPenalty;
+    }
+
+    /**
+     * 越野速度：上坡与下坡分别衰减，不能一视同仁。
+     * 上坡需要输出更大扭矩，坡度越大衰减越快（最低保留 25%）；
+     * 下坡主要是制动与安全控制，衰减幅度明显更小（最低保留 60%）。
+     */
+    private double offroadSpeed(OffRoadGrid from, OffRoadGrid to) {
+        double ratio = maxSlope <= 0 ? 0 : Math.min(1, Math.abs(to.slope) / maxSlope);
+        double elevationDelta = to.elevation - from.elevation;
+        double factor;
+        if (elevationDelta > 0) {
+            factor = Math.max(0.25, 1 - 0.75 * ratio);
+        } else if (elevationDelta < 0) {
+            factor = Math.max(0.6, 1 - 0.3 * ratio);
+        } else {
+            factor = 1;
+        }
+        return offroadSpeedKmh * factor;
     }
 
     /**

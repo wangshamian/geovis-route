@@ -951,7 +951,8 @@
         "maxweight": "15",
         "maxaxleload": "8",
         "maxwidth": "3.0",
-        "note": "样例数据：桥梁限重/限轴重/限宽，数值仅用于演示"
+        "maxbridgeload": "40",
+        "note": "样例数据：桥梁限重/限轴重/限宽/桥梁承载，数值仅用于演示"
       },
       "geometry": {
         "type": "LineString",
@@ -2824,7 +2825,8 @@
         "maxheight": "4.2",
         "maxwidth": "2.8",
         "maxweight": "10",
-        "note": "样例数据：市区道路限高/限宽/限重，数值仅用于演示"
+        "maxgradient": "12",
+        "note": "样例数据：市区道路限高/限宽/限重/最大纵坡，数值仅用于演示"
       },
       "geometry": {
         "type": "LineString",
@@ -4948,7 +4950,8 @@
         "surface": "asphalt",
         "maxlength": "10",
         "maxweight": "8",
-        "note": "样例数据：小路限重/限长，数值仅用于演示"
+        "maxforddepth": "0.5",
+        "note": "样例数据：小路限重/限长/最大涉水深度，数值仅用于演示"
       },
       "geometry": {
         "type": "LineString",

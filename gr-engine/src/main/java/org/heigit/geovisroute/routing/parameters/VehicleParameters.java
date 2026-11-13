@@ -23,6 +23,10 @@ public class VehicleParameters extends ProfileParameters {
     private double width = 0.0;
     private double weight = 0.0;
     private double axleload = 0.0;
+    // 军车通过性参数
+    private double gradient = 0.0;
+    private double fordDepth = 0.0;
+    private double bridgeLoad = 0.0;
     private int characteristics = VehicleLoadCharacteristicsFlags.NONE;
 
     public double getLength() {
@@ -65,6 +69,30 @@ public class VehicleParameters extends ProfileParameters {
         this.axleload = axleload;
     }
 
+    public double getGradient() {
+        return gradient;
+    }
+
+    public void setGradient(double gradient) {
+        this.gradient = gradient;
+    }
+
+    public double getFordDepth() {
+        return fordDepth;
+    }
+
+    public void setFordDepth(double fordDepth) {
+        this.fordDepth = fordDepth;
+    }
+
+    public double getBridgeLoad() {
+        return bridgeLoad;
+    }
+
+    public void setBridgeLoad(double bridgeLoad) {
+        this.bridgeLoad = bridgeLoad;
+    }
+
     public int getLoadCharacteristics() {
         return characteristics;
     }
@@ -74,7 +102,8 @@ public class VehicleParameters extends ProfileParameters {
     }
 
     public boolean hasAttributes() {
-        return height > 0.0 || length > 0.0 || width > 0.0 || weight > 0.0 || axleload > 0.0 || characteristics != 0;
+        return height > 0.0 || length > 0.0 || width > 0.0 || weight > 0.0 || axleload > 0.0
+                || gradient > 0.0 || fordDepth > 0.0 || bridgeLoad > 0.0 || characteristics != 0;
     }
 
     @Override
@@ -86,6 +115,9 @@ public class VehicleParameters extends ProfileParameters {
         valid.add("weight");
         valid.add("hazmat");
         valid.add("axleload");
+        valid.add("maximum_gradient");
+        valid.add("maximum_ford_depth");
+        valid.add("maximum_bridge_load");
         return valid;
     }
 }

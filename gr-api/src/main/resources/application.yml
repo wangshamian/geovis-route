@@ -62,6 +62,14 @@ ors:
     preflight_max_age: 600
   messages:
 
+  ##### OSM 底图瓦片本地缓存（测试页 /v2/tiles/osm/{z}/{x}/{y}.png 使用） #####
+  tiles:
+    cache_path: ./tile-cache
+    osm_upstream: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    osm_max_zoom: 19
+    # OSM 瓦片服务要求请求方提供可识别的 User-Agent
+    user_agent: geovis-route-local-tile-cache/1.0
+
   ##### ORS endpoints settings #####
   endpoints:
     routing:
@@ -218,6 +226,40 @@ ors:
                 active_landmarks: 6
       driving-hgv:
         encoder_name: driving-hgv
+        build:
+          encoder_options:
+            turn_costs: true
+            block_fords: false
+            use_acceleration: true
+            enable_custom_models: false
+          preparation:
+            min_network_size: 200
+            methods:
+              ch:
+                enabled: true
+                threads: 1
+                weightings: recommended
+              lm:
+                enabled: false
+              core:
+                enabled: true
+                threads: 1
+                weightings: recommended,shortest
+                landmarks: 64
+                lmsets: highways;allow_all
+          ext_storages:
+            WayCategory:
+            HeavyVehicle:
+              restrictions: true
+            Tollways:
+            WaySurfaceType:
+        service:
+          execution:
+            methods:
+              core:
+                active_landmarks: 6
+      driving-military:
+        encoder_name: driving-military
         build:
           encoder_options:
             turn_costs: true

@@ -40,7 +40,8 @@ public class CustomRoadNetworkProperties {
      */
     @JsonProperty("overlay_tags")
     private List<String> overlayTags = new ArrayList<>(List.of(
-            "maxheight", "maxwidth", "maxweight", "maxlength", "maxaxleload"));
+            "maxheight", "maxwidth", "maxweight", "maxlength", "maxaxleload",
+            "maxgradient", "maxforddepth", "maxbridgeload"));
     /**
      * add 模式下使用的默认 OSM 标签，GeoJSON 要素自身的 properties 会覆盖同名标签。
      */

@@ -90,7 +90,7 @@ public class TemporaryUtilShelter {
         }
 
         /* 重型车辆过滤器 */
-        if (profileType == RoutingProfileType.DRIVING_HGV) {
+        if (profileType == RoutingProfileType.DRIVING_HGV || profileType == RoutingProfileType.DRIVING_MILITARY) {
             props.putObject("edgefilter_hgv", searchParams.getVehicleType());
         }
 

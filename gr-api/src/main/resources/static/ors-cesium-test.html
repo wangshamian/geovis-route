@@ -14,6 +14,7 @@
     position: absolute; top: 10px; left: 10px; z-index: 1000; width: 340px;
     background: rgba(255,255,255,.96); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.18);
     padding: 12px 14px; font-size: 13px; color: #222;
+    max-height: calc(100vh - 20px); overflow-y: auto; /* 导航指引较多时面板可滚动 */
   }
   .panel h1 { font-size: 15px; margin: 0 0 8px; }
   .tabs { display: flex; gap: 4px; margin-bottom: 8px; border-bottom: 1px solid #e3e6ec; }
@@ -35,6 +36,14 @@
   #hint { color: #777; margin-top: 8px; line-height: 1.5; }
   .result { margin-top: 8px; padding: 8px; background: #f5f7fb; border-radius: 6px; display: none; }
   .result .big { font-size: 16px; font-weight: 600; color: #1a4fa0; }
+  .route-steps { margin-top: 6px; border-top: 1px solid #e3e6ec; max-height: 260px; overflow: auto; }
+  .route-step { display: flex; gap: 6px; align-items: flex-start; padding: 5px 0; border-bottom: 1px dashed #e6e9f0; }
+  .route-step:last-child { border-bottom: none; }
+  .route-step .ic { flex: 0 0 16px; text-align: center; color: #1a73e8; font-size: 14px; line-height: 18px; }
+  .route-step .tx { flex: 1; min-width: 0; line-height: 1.35; word-break: break-all; }
+  .route-step .act { font-weight: 600; }
+  .route-step .road { color: #1a4fa0; }
+  .route-step .mt { flex: 0 0 66px; text-align: right; color: #666; font-size: 12px; line-height: 1.35; white-space: nowrap; }
   #error { margin-top: 8px; color: #b3261e; display: none; white-space: pre-wrap; max-height: 140px; overflow: auto; }
   .pts { color: #444; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
   .search-row { position: relative; display: flex; gap: 6px; align-items: center; margin: 6px 0; }
@@ -66,6 +75,7 @@
     <button class="tab active" data-tab="route">路线规划</button>
     <button class="tab" data-tab="iso">等时线</button>
     <button class="tab" data-tab="offroad">越野路径</button>
+    <button class="tab" data-tab="hybrid">公路+越野</button>
   </div>
 
   <div class="row">
@@ -73,7 +83,7 @@
     <select id="basemap">
       <option value="amap" selected>高德路网（GCJ-02）</option>
       <option value="amap-img">高德卫星影像（GCJ-02）</option>
-      <option value="osm">OpenStreetMap（WGS84）</option>
+      <option value="osm">OpenStreetMap（本地缓存 · WGS84）</option>
       <option value="none">无底图（纯椭球）</option>
     </select>
   </div>
@@ -165,7 +175,7 @@
       <button class="act secondary" id="clear-geofence">清除</button>
     </div>
     <div id="draw-hint" style="display:none;color:#1a73e8;font-size:12px;margin-top:2px"></div>
-    <div style="color:#777;font-size:12px;line-height:1.4">限高/限宽/限重/轴重与危险品仅在 driving-hgv 下生效；出租车专用道当前服务端不支持。</div>
+    <div style="color:#777;font-size:12px;line-height:1.4">限高/限宽/限重/轴重与危险品仅 driving-hgv 下生效；出租车专用道当前服务端不支持。</div>
     <div class="pts" id="pts">起点/终点：在地球上点击选点</div>
     <div class="result" id="route-result"></div>
   </div>
@@ -194,6 +204,7 @@
       <select id="iso-vehicle">
         <option value="driving-car" selected>汽车</option>
         <option value="driving-hgv">货车</option>
+        <option value="driving-military">军车</option>
         <option value="cycling-regular">自行车</option>
         <option value="cycling-mountain">山地自行车</option>
         <option value="cycling-road">公路自行车</option>
@@ -255,6 +266,40 @@
       <button class="act secondary" id="offroad-gpx">下载 GPX</button>
       <button class="act secondary" id="offroad-geojson">下载 GeoJSON</button>
       <button class="act secondary" id="offroad-cancel" style="display:none;color:#b3261e;border-color:#b3261e">取消</button>
+    </div>
+  </div>
+
+  <div id="tab-hybrid" style="display:none">
+    <div class="row">
+      <label class="lbl">路网 profile</label>
+      <select id="hybrid-profile">
+        <option value="driving-military" selected>军车 driving-military</option>
+      </select>
+    </div>
+    <div class="row">
+      <label class="lbl">网格间距</label>
+      <input type="number" id="hybrid-grid" value="300" min="10" max="1000" step="10" />
+    </div>
+    <div class="row">
+      <label class="lbl">最大坡度</label>
+      <input type="number" id="hybrid-maxslope" value="20" min="1" max="60" step="1" />
+      <span style="color:#777">度</span>
+    </div>
+    <div class="row">
+      <label class="lbl">越野速度</label>
+      <input type="number" id="hybrid-speed" value="25" min="1" max="80" step="1" />
+      <span style="color:#777">km/h</span>
+    </div>
+    <div class="row">
+      <label class="lbl">公路优先</label>
+      <input type="number" id="hybrid-penalty" value="1.5" min="1" max="10" step="0.5" />
+      <span style="color:#777">倍，越大越倾向走公路</span>
+    </div>
+    <div class="pts" id="hybrid-pts">起点/终点：在地球上点击选点</div>
+    <div class="result" id="hybrid-result"></div>
+    <div class="row" id="hybrid-actions" style="display:none;margin-top:6px">
+      <span style="color:#555;font-size:12px;flex:1">公路段按路网速度，越野段按上/下坡分别衰减</span>
+      <button class="act secondary" id="hybrid-cancel" style="display:none;color:#b3261e;border-color:#b3261e">取消</button>
     </div>
   </div>
 
@@ -384,6 +429,15 @@ const offroadPtsEl = document.getElementById('offroad-pts');
 const routeResultEl = document.getElementById('route-result');
 const isoResultEl = document.getElementById('iso-result');
 const offroadResultEl = document.getElementById('offroad-result');
+const hybridProfileEl = document.getElementById('hybrid-profile');
+const hybridGridEl = document.getElementById('hybrid-grid');
+const hybridMaxSlopeEl = document.getElementById('hybrid-maxslope');
+const hybridSpeedEl = document.getElementById('hybrid-speed');
+const hybridPenaltyEl = document.getElementById('hybrid-penalty');
+const hybridPtsEl = document.getElementById('hybrid-pts');
+const hybridResultEl = document.getElementById('hybrid-result');
+const hybridActionsEl = document.getElementById('hybrid-actions');
+const hybridCancelEl = document.getElementById('hybrid-cancel');
 const errorEl = document.getElementById('error');
 const loadingEl = document.getElementById('loading');
 const hintEl = document.getElementById('hint');
@@ -392,6 +446,7 @@ const hintEl = document.getElementById('hint');
 const VEHICLE_LABELS = {
   'driving-car': '汽车',
   'driving-hgv': '货车',
+  'driving-military': '军车',
   'cycling-regular': '自行车',
   'cycling-mountain': '山地自行车',
   'cycling-road': '公路自行车',
@@ -420,7 +475,7 @@ async function loadAvailableVehicles() {
     const data = await resp.json();
     const names = Object.keys(data.profiles || {});
     if (!names.length) return;
-    fillVehicleSelect(routeVehicleEl, names);
+    fillVehicleSelect(routeVehicleEl, names.filter(name => name !== 'driving-military'));
     fillVehicleSelect(isoVehicleEl, names);
     updateRouteOptionAvailability();
     updateIsoOptionAvailability();
@@ -439,6 +494,16 @@ function showError(msg) {
 function clearError() {
   errorEl.style.display = 'none';
   errorEl.textContent = '';
+}
+
+// 服务端返回 2003 表示该 profile 未在当前实例加载（例如后端还是旧版本或未构建该交通工具图），
+// 此时按 /v2/status 刷新下拉框，并输出实际请求地址便于确认 profile 段
+async function handleProfileUnavailable(url, data) {
+  if (!data || !data.error || data.error.code !== 2003) return false;
+  await loadAvailableVehicles();
+  showError('当前服务实例未加载所选交通工具（profile）。已按服务端实际可用列表刷新，请重新选择。\n'
+    + '请求地址：' + url + '\n' + JSON.stringify(data, null, 2));
+  return true;
 }
 
 // 高德底图是 GCJ-02 坐标系，ORS 结果是 WGS84，两者之间需要纠偏
@@ -493,16 +558,16 @@ function ensureTerrain() {
   return terrainRequest;
 }
 
-// 路线规划、等时线使用椭球体（无地形坡度），只有越野路径页加载真实地形
+// 路线规划、等时线使用椭球体（无地形坡度），越野与混合页加载真实地形
 function applyTerrainForTab(tab) {
   if (!viewer) return;
-  if (tab !== 'offroad') {
+  if (tab !== 'offroad' && tab !== 'hybrid') {
     if (!ellipsoidTerrain) ellipsoidTerrain = new Cesium.EllipsoidTerrainProvider();
     viewer.terrainProvider = ellipsoidTerrain;
     return;
   }
   ensureTerrain()
-    .then(provider => { if (viewer && activeTab === 'offroad') viewer.terrainProvider = provider; })
+    .then(provider => { if (viewer && (activeTab === 'offroad' || activeTab === 'hybrid')) viewer.terrainProvider = provider; })
     .catch(e => console.warn('地形服务加载失败，继续使用椭球体：', e));
 }
 
@@ -517,6 +582,9 @@ function setVerticalExaggeration(value) {
 setVerticalExaggeration(Number(offroadExagEl.value));
 
 // ---------- 底图 ----------
+// OSM 瓦片走后端代理接口并落盘缓存（首次访问联网拉取，之后直接读本地文件）；
+// 页面以 file:// 直接打开时无法访问后端，退回官方瓦片服务
+const OSM_TILE_API = location.origin + location.pathname.replace(/[^/]*$/, '') + 'v2/tiles/osm';
 function amapProvider() {
   return new Cesium.UrlTemplateImageryProvider({
     url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
@@ -537,7 +605,9 @@ function amapImageProvider() {
 }
 function osmProvider() {
   return new Cesium.UrlTemplateImageryProvider({
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    url: location.protocol === 'file:'
+      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : OSM_TILE_API + '/{z}/{x}/{y}.png',
     tilingScheme: new Cesium.WebMercatorTilingScheme(),
     maximumLevel: 19,
     credit: '© OpenStreetMap contributors'
@@ -563,6 +633,12 @@ const isoEntities = [];
 const offroadEntities = []; // 起终点标记
 const offroadShapes = [];   // 路径
 const offroadBarriers = []; // 障碍区域，单独存放以便显隐切换
+// 公路+越野混合页使用独立状态，避免与纯越野页互相覆盖
+let hybridPoints = [];      // WGS84 [lat, lng]
+const hybridEntities = [];
+const hybridShapes = [];
+let hybridAbort = null;
+let hybridData = null;
 
 function removeEntities(arr) {
   arr.forEach(e => viewer && viewer.entities.remove(e));
@@ -905,6 +981,8 @@ function clearOverlays() {
   removeEntities(offroadEntities);
   removeEntities(offroadShapes);
   removeEntities(offroadBarriers);
+  removeEntities(hybridEntities);
+  removeEntities(hybridShapes);
   removeOffroadHoverMarker();
   clearAvoidZones();
   clearGeofence();
@@ -915,8 +993,11 @@ function clearOverlays() {
   offroadPoints = [];
   offroadData = null;
   offroadProfile = null;
-  // 中止仍在进行的越野路径计算
+  hybridPoints = [];
+  hybridData = null;
+  // 中止仍在进行的越野/混合路径计算
   if (offroadAbort) { offroadAbort.abort(); offroadAbort = null; }
+  if (hybridAbort) { hybridAbort.abort(); hybridAbort = null; }
   loadingEl.textContent = '计算中…';
   loadingEl.style.display = 'none';
   routeResultEl.style.display = 'none';
@@ -924,10 +1005,14 @@ function clearOverlays() {
   offroadResultEl.style.display = 'none';
   offroadActionsEl.style.display = 'none';
   offroadCancelEl.style.display = 'none';
+  hybridResultEl.style.display = 'none';
+  hybridActionsEl.style.display = 'none';
+  hybridCancelEl.style.display = 'none';
   clearError();
   renderRouteMarkers();
   renderIsoCenter();
   renderOffroadMarkers();
+  renderHybridMarkers();
 }
 
 function zoomToRect(west, south, east, north) {
@@ -960,7 +1045,8 @@ function updateRouteOptionAvailability() {
   const isDriving = profile.startsWith('driving-');
   const isHgv = profile === 'driving-hgv';
   [avoidHighwaysEl, avoidTollwaysEl, avoidFerriesEl].forEach(el => { el.disabled = !isDriving; });
-  [vehicleTypeEl, restrictHeightEl, restrictWidthEl, restrictWeightEl, restrictAxleloadEl, restrictHazmatEl]
+  vehicleTypeEl.disabled = !isHgv;
+  [restrictHeightEl, restrictWidthEl, restrictWeightEl, restrictAxleloadEl, restrictHazmatEl]
     .forEach(el => { el.disabled = !isHgv; });
 }
 
@@ -968,7 +1054,8 @@ async function computeRoute() {
   const body = {
     coordinates: routePoints.map(p => [p[1], p[0]]), // ORS 需要 [lon, lat]
     preference: prefEl.value,
-    instructions: true
+    instructions: true,
+    language: 'zh-cn' // 导航指令使用中文（左转/右转/直行 + 道路名）
   };
   const options = buildRouteOptions();
   if (Object.keys(options).length) body.options = options;
@@ -976,14 +1063,19 @@ async function computeRoute() {
   loadingEl.style.display = 'inline';
   routeResultEl.style.display = 'none';
   clearError();
+  const url = `${API_BASE}/v2/directions/${encodeURIComponent(routeVehicleEl.value)}`;
   try {
-    const resp = await fetch(`${API_BASE}/v2/directions/${encodeURIComponent(routeVehicleEl.value)}`, {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    if (!resp.ok) { showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2)); return; }
+    if (!resp.ok) {
+      if (await handleProfileUnavailable(url, data)) return;
+      showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2));
+      return;
+    }
     drawRoute(data);
   } catch (err) {
     showError('请求失败：' + err.message + '\n（确认服务已启动、地址正确，且允许跨域）');
@@ -1011,7 +1103,7 @@ function buildRouteOptions() {
     };
   }
 
-  // 重型车辆限制只对 driving-hgv 有效，且必须带 vehicle_type
+  // 重型车辆限制只对民用货车 driving-hgv 生效
   if (routeVehicleEl.value === 'driving-hgv') {
     options.vehicle_type = vehicleTypeEl.value;
     const restrictions = {};
@@ -1030,21 +1122,94 @@ function buildRouteOptions() {
   return options;
 }
 
+// ORS instruction type -> 中文动作文字与箭头图标（与后端 InstructionType 枚举一致）
+const ROUTE_STEP_ACTIONS = {
+  0: { icon: '←', label: '左转' },
+  1: { icon: '→', label: '右转' },
+  2: { icon: '↖', label: '向左急转' },
+  3: { icon: '↗', label: '向右急转' },
+  4: { icon: '↖', label: '稍向左转' },
+  5: { icon: '↗', label: '稍向右转' },
+  6: { icon: '↑', label: '直行' },
+  7: { icon: '↻', label: '进入环岛' },
+  8: { icon: '↺', label: '驶出环岛' },
+  9: { icon: '⤿', label: '掉头' },
+  10: { icon: '⚑', label: '到达目的地' },
+  11: { icon: '▶', label: '出发' },
+  12: { icon: '↖', label: '靠左行驶' },
+  13: { icon: '↗', label: '靠右行驶' }
+};
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g,
+    ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function formatStepDistance(meters) {
+  if (!(meters >= 0)) return '';
+  return meters >= 1000 ? (meters / 1000).toFixed(1) + ' km' : Math.round(meters) + ' m';
+}
+
+function formatStepDuration(seconds) {
+  if (!(seconds >= 0)) return '';
+  return seconds < 60 ? '不到 1 分' : formatDuration(seconds);
+}
+
+// 把 segments[].steps[] 渲染成逐条导航指引：动作 + 道路名 + 该段距离/耗时
+function renderRouteSteps(segments) {
+  const rows = [];
+  (segments || []).forEach(segment => {
+    (segment.steps || []).forEach(step => {
+      const action = ROUTE_STEP_ACTIONS[step.type];
+      const name = step.name && step.name !== '-' ? escapeHtml(step.name) : '';
+      let text;
+      if (action) {
+        text = `<span class="act">${action.label}</span>`;
+        if (step.type === 8 && step.exit_number) {
+          text = `<span class="act">从第 ${step.exit_number} 个出口驶出环岛</span>`;
+        }
+        if (name) {
+          if (step.type === 10) text += `（${name}）`;
+          else if (step.type === 11) text += ` 沿 <span class="road">${name}</span>`;
+          else if (step.type !== 7) text += ` 进入 <span class="road">${name}</span>`;
+        }
+      } else {
+        text = `<span class="act">${escapeHtml(step.instruction || '继续前行')}</span>`;
+      }
+      const dist = formatStepDistance(step.distance);
+      const dur = formatStepDuration(step.duration);
+      const meta = [dist, dur].filter(Boolean).join('<br>');
+      rows.push(
+        `<div class="route-step">` +
+        `<span class="ic">${action ? action.icon : '•'}</span>` +
+        `<span class="tx">${text}</span>` +
+        (meta ? `<span class="mt">${meta}</span>` : '') +
+        `</div>`
+      );
+    });
+  });
+  return rows.join('');
+}
+
 function drawRoute(data) {
   // ORS v2 返回 {metadata, routes, bbox}，routes[0].geometry 是 encoded polyline；
   // 同时兼容 GeoJSON FeatureCollection 形状。
   let coords = [];
   let summary = {};
+  let segments = [];
   if (Array.isArray(data.routes) && data.routes.length) {
     const route = data.routes[0];
     summary = route.summary || {};
+    segments = route.segments || [];
     const geom = route.geometry;
     coords = typeof geom === 'string'
       ? decodePolyline(geom, 5)
       : ((geom && geom.coordinates) || []).map(c => [c[1], c[0]]);
   } else if (data.features && data.features[0]) {
     const feature = data.features[0];
-    summary = (feature.properties && feature.properties.summary) || {};
+    const props = feature.properties || {};
+    summary = props.summary || props; // GeoJSON 响应的 distance/duration 直接挂在 properties 上
+    segments = props.segments || [];
     const geom = feature.geometry;
     coords = typeof geom === 'string'
       ? decodePolyline(geom, 5)
@@ -1086,11 +1251,15 @@ function drawRoute(data) {
     const lat = c[0], lon = c[1];
     return lon < geofence.bbox.west || lon > geofence.bbox.east || lat < geofence.bbox.south || lat > geofence.bbox.north;
   });
+  const stepsHtml = renderRouteSteps(segments);
   routeResultEl.style.display = 'block';
   routeResultEl.innerHTML =
     `<div class="big">${dist} · ${dur}</div>` +
     `<div style="color:#555;margin-top:4px">${vehicleText}（${routeVehicleEl.value}）· 偏好 ${prefEl.options[prefEl.selectedIndex].text}，点 ${coords.length} 个</div>` +
-    (outsideFence ? '<div style="color:#d93025;margin-top:4px">路线超出业务围栏范围，请调整起终点或围栏</div>' : '');
+    (outsideFence ? '<div style="color:#d93025;margin-top:4px">路线超出业务围栏范围，请调整起终点或围栏</div>' : '') +
+    (stepsHtml
+      ? `<div class="route-steps">${stepsHtml}</div>`
+      : '<div style="color:#777;margin-top:6px">未返回导航指令（请确认服务端已开启 instructions）</div>');
 }
 
 // ---------- 越野路径 ----------
@@ -1248,6 +1417,189 @@ function drawOffroad(data) {
   offroadActionsEl.style.display = 'flex';
   offroadCancelEl.style.display = 'none';
   bindOffroadProfileHover();
+}
+
+// ---------- 公路+越野混合（独立标签页，状态与纯越野互不影响） ----------
+function renderHybridMarkers() {
+  removeEntities(hybridEntities);
+  hybridPoints.forEach((p, i) => {
+    hybridEntities.push(pointEntity(p[0], p[1],
+      Cesium.Color.fromCssColorString(i === 0 ? '#1e8e3e' : '#d93025'), i === 0 ? '起点' : '终点'));
+  });
+  hybridPtsEl.textContent = hybridPoints.length
+    ? hybridPoints.map((p, i) => `${i === 0 ? '起点' : '终点'} WGS84: ${p[0].toFixed(5)}, ${p[1].toFixed(5)}`).join('\n')
+    : '起点/终点：在地球上点击选点';
+}
+
+async function computeHybrid() {
+  const gridInterval = Number(hybridGridEl.value);
+  const maxSlope = Number(hybridMaxSlopeEl.value);
+  const offroadSpeed = Number(hybridSpeedEl.value);
+  const penalty = Number(hybridPenaltyEl.value);
+  if (!(gridInterval >= 10 && gridInterval <= 1000)) { showError('网格间距需在 10~1000 米之间'); return; }
+  if (!(maxSlope >= 1 && maxSlope <= 60)) { showError('最大坡度需在 1~60 度之间'); return; }
+  if (!(offroadSpeed > 0 && offroadSpeed <= 80)) { showError('越野速度需在 0~80 km/h 之间'); return; }
+  if (!(penalty >= 1 && penalty <= 10)) { showError('公路优先系数需在 1~10 之间'); return; }
+
+  // 混合路由同样使用影像底图，便于判读公路与地形
+  if (basemapEl.value !== 'amap-img') {
+    basemapEl.value = 'amap-img';
+    setBaseLayer('amap-img');
+    renderHybridMarkers();
+  }
+
+  const body = {
+    coordinates: hybridPoints.map(p => [p[1], p[0]]), // 接口需要 [lon, lat]
+    grid_interval: gridInterval,
+    max_slope: maxSlope,
+    vehicle: 'military-hybrid',
+    profile: hybridProfileEl.value,
+    offroad_speed_kmh: offroadSpeed,
+    offroad_penalty: penalty
+  };
+
+  if (hybridAbort) hybridAbort.abort();
+  const controller = new AbortController();
+  hybridAbort = controller;
+
+  loadingEl.textContent = `公路+越野混合计算中（网格 ${gridInterval} m）…`;
+  loadingEl.style.display = 'inline';
+  hybridCancelEl.style.display = 'inline-block';
+  hybridActionsEl.style.display = 'flex';
+  hybridResultEl.style.display = 'none';
+  clearError();
+  let elapsed = 0;
+  const timer = setInterval(() => {
+    elapsed += 1;
+    if (hybridAbort === controller) {
+      loadingEl.textContent = `公路+越野混合计算中 ${elapsed}s（网格 ${gridInterval} m）…`;
+    }
+  }, 1000);
+  try {
+    const resp = await fetch(`${API_BASE}/v2/hybrid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      hybridActionsEl.style.display = 'none';
+      hybridResultEl.style.display = 'none';
+      showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2));
+      return;
+    }
+    drawHybrid(data);
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      showError('请求失败：' + err.message + '\n（确认服务已启动、地址正确，且允许跨域）');
+    }
+  } finally {
+    clearInterval(timer);
+    if (hybridAbort === controller) {
+      hybridAbort = null;
+      loadingEl.textContent = '计算中…';
+      loadingEl.style.display = 'none';
+      hybridCancelEl.style.display = 'none';
+    }
+  }
+}
+
+function drawHybrid(data) {
+  removeEntities(hybridShapes);
+  hybridData = data;
+
+  const coords = (data.geometry && data.geometry.coordinates) || [];
+  if (!coords.length) {
+    clearError();
+    hybridResultEl.style.display = 'block';
+    hybridResultEl.innerHTML =
+      `<div class="big">未找到可行路径</div>` +
+      `<div style="color:#555;margin-top:4px">${data.message || '请调整坡度阈值或网格间距后重试'}</div>`;
+    hybridActionsEl.style.display = 'none';
+    return;
+  }
+
+  // 按分段着色：公路蓝、越野橙；后端未返回分段时回退为整条单色
+  const flat = [];
+  let west = 180, south = 90, east = -180, north = -90;
+  const extendBounds = (m) => {
+    west = Math.min(west, m[1]); east = Math.max(east, m[1]);
+    south = Math.min(south, m[0]); north = Math.max(north, m[0]);
+  };
+  coords.forEach(c => {
+    const m = toMapCoord(c[1], c[0]);
+    flat.push(m[1], m[0]);
+    extendBounds(m);
+  });
+  const drawSegmentLine = (points, color) => {
+    const flatSegment = [];
+    points.forEach(c => {
+      const m = toMapCoord(c[1], c[0]);
+      flatSegment.push(m[1], m[0]);
+      extendBounds(m);
+    });
+    if (flatSegment.length < 4) return;
+    hybridShapes.push(viewer.entities.add({
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArray(flatSegment),
+        width: 7,
+        clampToGround: true,
+        material: Cesium.Color.fromCssColorString(color)
+      }
+    }));
+  };
+  const coloredSegments = (data.segments || []).filter(s => Array.isArray(s.coordinates) && s.coordinates.length >= 2);
+  if (coloredSegments.length) {
+    // 分段坐标与路径几何来自同一组网格中心点，颜色交界处能够衔接
+    coloredSegments.forEach(s => drawSegmentLine(s.coordinates, s.type === 'road' ? '#1a73e8' : '#e8710a'));
+  } else {
+    hybridShapes.push(viewer.entities.add({
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArray(flat),
+        width: 6,
+        clampToGround: true,
+        material: Cesium.Color.fromCssColorString('#1a73e8')
+      }
+    }));
+  }
+  if (west < east && south < north) zoomToRect(west, south, east, north);
+
+  const summary = data.summary || {};
+  const num = (v, unit) => (v == null ? '—' : `${v}${unit}`);
+  const distanceText = summary.distance != null ? (summary.distance / 1000).toFixed(2) + ' km' : '—';
+  const durationText = summary.duration != null ? formatDuration(summary.duration) : '—';
+  // 分段明细：说明每一段何时走公路、何时越野，以及对应里程、耗时和速度
+  const segs = data.segments || [];
+  const segHtml = segs.length
+    ? `<div style="margin-top:8px;border-top:1px solid #e3e6ec;padding-top:6px;max-height:170px;overflow:auto">` +
+      segs.map(s => {
+        const isRoad = s.type === 'road';
+        const tag = isRoad
+          ? '<span style="color:#1a73e8;font-weight:600">公路</span>'
+          : '<span style="color:#b3261e;font-weight:600">越野</span>';
+        const segKm = (s.distance / 1000).toFixed(2);
+        const segDur = formatDuration(s.duration);
+        const speed = s.duration > 0 ? (s.distance / s.duration * 3.6).toFixed(1) + ' km/h' : '—';
+        const from = `${s.start[1].toFixed(5)}, ${s.start[0].toFixed(5)}`;
+        const to = `${s.end[1].toFixed(5)}, ${s.end[0].toFixed(5)}`;
+        return `<div style="font-size:12px;color:#333;padding:4px 0;border-bottom:1px dashed #eef0f4">` +
+          `<div>${s.index}. ${tag} · ${segKm} km · ${segDur} · 均速 ${speed}</div>` +
+          `<div style="color:#888">${from} → ${to}</div></div>`;
+      }).join('') +
+      `<div style="font-size:12px;color:#777;margin-top:4px">公路段按路网速度计算；无路可走、接驳起终点或绕开超坡区域时转入越野段（上坡衰减快、下坡仅安全减速，并计入公路优先惩罚）。</div>` +
+      `</div>`
+    : '';
+  hybridResultEl.style.display = 'block';
+  hybridResultEl.innerHTML =
+    `<div class="big">${distanceText} · 约 ${durationText}</div>` +
+    `<div style="color:#555;margin-top:4px">${data.profile || hybridProfileEl.value} · 越野 ${data.offroad_speed_kmh ?? '—'} km/h · 公路优先 ${data.offroad_penalty ?? '—'} 倍 · 网格 ${data.grid_interval} m</div>` +
+    `<div style="margin-top:4px;font-size:12px"><span style="color:#1a73e8">━ 公路段</span>　<span style="color:#e8710a">━ 越野段</span></div>` +
+    `<div style="color:#555;margin-top:2px">剖面最大坡度 ${num(summary.max_slope, '°')} · 平均 ${num(summary.avg_slope, '°')} · 爬升 ${num(summary.ascend, ' m')} · 下降 ${num(summary.descend, ' m')}</div>` +
+    segHtml +
+    elevationProfileHtml(data.elevation);
+  hybridActionsEl.style.display = 'flex';
+  hybridCancelEl.style.display = 'none';
 }
 
 function elevationProfileHtml(profile) {
@@ -1450,14 +1802,19 @@ async function computeIsochrone() {
   loadingEl.style.display = 'inline';
   isoResultEl.style.display = 'none';
   clearError();
+  const url = `${API_BASE}/v2/isochrones/${encodeURIComponent(isoVehicleEl.value)}`;
   try {
-    const resp = await fetch(`${API_BASE}/v2/isochrones/${encodeURIComponent(isoVehicleEl.value)}`, {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    if (!resp.ok) { showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2)); return; }
+    if (!resp.ok) {
+      if (await handleProfileUnavailable(url, data)) return;
+      showError('HTTP ' + resp.status + '\n' + JSON.stringify(data, null, 2));
+      return;
+    }
     drawIsochrones(data, rangeType, ranges);
   } catch (err) {
     showError('请求失败：' + err.message + '\n（确认服务已启动、地址正确，且允许跨域）');
@@ -1566,10 +1923,11 @@ function switchTab(tab) {
   document.getElementById('tab-route').style.display = tab === 'route' ? '' : 'none';
   document.getElementById('tab-iso').style.display = tab === 'iso' ? '' : 'none';
   document.getElementById('tab-offroad').style.display = tab === 'offroad' ? '' : 'none';
-  // 地形坡度只在越野路径页需要，其他页面用椭球体
+  document.getElementById('tab-hybrid').style.display = tab === 'hybrid' ? '' : 'none';
+  // 地形坡度在越野路径页与混合页都需要，其他页面用椭球体
   applyTerrainForTab(tab);
-  // 越野路径默认使用卫星影像底图；切回其他 tab 时恢复高德路网
-  if (tab === 'offroad') {
+  // 越野/混合页默认使用卫星影像底图；切回其他 tab 时恢复高德路网
+  if (tab === 'offroad' || tab === 'hybrid') {
     if (basemapEl.value === 'amap') {
       basemapEl.value = 'amap-img';
       setBaseLayer('amap-img');
@@ -1582,7 +1940,9 @@ function switchTab(tab) {
     ? '在地名检索框输入起点/途经点/终点，或点击地球依次选点（槽位填满后再次点击重新开始）。<br />检索服务地址默认 http://localhost:8088/，可自行修改。<br />台湾测试范围约：经度 121.45~121.65，纬度 24.95~25.10。'
     : tab === 'iso'
       ? '点击地球选等时线中心点；再点一次会以新点重新计算。<br />范围值支持多级，用逗号分隔（最多 5 级），如 300,600,900。'
-      : '按网格坡度计算可直接通行的越野路径，自动使用卫星影像底图并显示高程剖面。<br />点击选起点，再点一次选终点；网格间距越小越精细，但计算越慢。可调整坡度阈值、障碍显示与地形起伏，结果支持导出 GPX/GeoJSON。';
+      : tab === 'offroad'
+        ? '按网格坡度计算可直接通行的越野路径，自动使用卫星影像底图并显示高程剖面。<br />点击选起点，再点一次选终点；网格间距越小越精细，但计算越慢。可调整坡度阈值、障碍显示与地形起伏，结果支持导出 GPX/GeoJSON。'
+        : '公路+越野混合：网格落在公路上时按路网速度计算，否则按越野速度并结合坡度衰减（上坡更慢、下坡仅适度减速），公路优先系数越大越倾向走公路。<br />点击选起点，再点一次选终点；结果给出分段明细。';
   clearOverlays();
 }
 
@@ -1621,7 +1981,7 @@ if (viewer) {
       isoCenter = [wgs[0], wgs[1]];
       renderIsoCenter();
       computeIsochrone();
-    } else {
+    } else if (activeTab === 'offroad') {
       if (offroadPoints.length >= 2) {
         offroadPoints = [];
         removeEntities(offroadShapes);
@@ -1634,6 +1994,17 @@ if (viewer) {
       offroadPoints.push([wgs[0], wgs[1]]);
       renderOffroadMarkers();
       if (offroadPoints.length === 2) computeOffroad();
+    } else if (activeTab === 'hybrid') {
+      if (hybridPoints.length >= 2) {
+        hybridPoints = [];
+        removeEntities(hybridShapes);
+        hybridResultEl.style.display = 'none';
+        hybridActionsEl.style.display = 'none';
+        clearError();
+      }
+      hybridPoints.push([wgs[0], wgs[1]]);
+      renderHybridMarkers();
+      if (hybridPoints.length === 2) computeHybrid();
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -1644,18 +2015,22 @@ if (viewer) {
     renderRouteMarkers();
     renderIsoCenter();
     renderOffroadMarkers();
+    renderHybridMarkers();
     if (activeTab === 'route' && routePoints.length >= 2) computeRoute();
     if (activeTab === 'iso' && isoCenter) computeIsochrone();
     if (activeTab === 'offroad' && offroadPoints.length === 2) computeOffroad();
+    if (activeTab === 'hybrid' && hybridPoints.length === 2) computeHybrid();
   });
   gcjToggle.addEventListener('change', () => {
     renderRouteMarkers();
     renderIsoCenter();
     renderOffroadMarkers();
+    renderHybridMarkers();
     renderAvoidZonesAndFence();
     if (activeTab === 'route' && routePoints.length >= 2) computeRoute();
     if (activeTab === 'iso' && isoCenter) computeIsochrone();
     if (activeTab === 'offroad' && offroadPoints.length === 2) computeOffroad();
+    if (activeTab === 'hybrid' && hybridPoints.length === 2) computeHybrid();
   });
   prefEl.addEventListener('change', () => { if (activeTab === 'route' && routePoints.length >= 2) computeRoute(); });
   routeVehicleEl.addEventListener('change', () => { updateRouteOptionAvailability(); routeRecompute(); });
@@ -1684,6 +2059,16 @@ if (viewer) {
     offroadBarriers.forEach(e => { e.show = visible; });
   });
   offroadExagEl.addEventListener('input', () => setVerticalExaggeration(Number(offroadExagEl.value)));
+  // 混合页参数变化时，若已有起终点则重新计算
+  [hybridGridEl, hybridMaxSlopeEl, hybridSpeedEl, hybridPenaltyEl, hybridProfileEl].forEach(el =>
+    el.addEventListener('change', () => { if (activeTab === 'hybrid' && hybridPoints.length === 2) computeHybrid(); }));
+  hybridCancelEl.addEventListener('click', () => {
+    if (hybridAbort) { hybridAbort.abort(); hybridAbort = null; }
+    loadingEl.textContent = '计算中…';
+    loadingEl.style.display = 'none';
+    hybridCancelEl.style.display = 'none';
+    hybridActionsEl.style.display = hybridData ? 'flex' : 'none';
+  });
   offroadCancelEl.addEventListener('click', () => {
     if (offroadAbort) { offroadAbort.abort(); offroadAbort = null; }
     loadingEl.textContent = '计算中…';
@@ -1711,12 +2096,17 @@ if (viewer) {
       isoCenter = [25.047764, 121.517089];
       renderIsoCenter();
       computeIsochrone();
-    } else {
+    } else if (activeTab === 'offroad') {
       removeEntities(offroadShapes);
       removeEntities(offroadBarriers);
       offroadPoints = [[25.047764, 121.517089], [25.026994, 121.572668]];
       renderOffroadMarkers();
       computeOffroad();
+    } else {
+      removeEntities(hybridShapes);
+      hybridPoints = [[25.047764, 121.517089], [25.026994, 121.572668]];
+      renderHybridMarkers();
+      computeHybrid();
     }
   });
 }

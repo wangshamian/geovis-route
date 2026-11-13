@@ -262,6 +262,9 @@ public class ApiService {
         setHeightParam(restrictions, params);
         setWeightParam(restrictions, params);
         setAxleLoadParam(restrictions, params);
+        setGradientParam(restrictions, params);
+        setFordDepthParam(restrictions, params);
+        setBridgeLoadParam(restrictions, params);
 
         setLoadCharacteristicsParam(restrictions, params);
 
@@ -303,6 +306,30 @@ public class ApiService {
     private VehicleParameters setAxleLoadParam(RequestProfileParamsRestrictions restrictions, VehicleParameters params) {
         if (params != null && restrictions != null && restrictions.hasAxleLoad()) {
             params.setAxleload(restrictions.getAxleLoad());
+        }
+
+        return params;
+    }
+
+    private VehicleParameters setGradientParam(RequestProfileParamsRestrictions restrictions, VehicleParameters params) {
+        if (params != null && restrictions != null && restrictions.hasMaxGradient()) {
+            params.setGradient(restrictions.getMaxGradient());
+        }
+
+        return params;
+    }
+
+    private VehicleParameters setFordDepthParam(RequestProfileParamsRestrictions restrictions, VehicleParameters params) {
+        if (params != null && restrictions != null && restrictions.hasMaxFordDepth()) {
+            params.setFordDepth(restrictions.getMaxFordDepth());
+        }
+
+        return params;
+    }
+
+    private VehicleParameters setBridgeLoadParam(RequestProfileParamsRestrictions restrictions, VehicleParameters params) {
+        if (params != null && restrictions != null && restrictions.hasMaxBridgeLoad()) {
+            params.setBridgeLoad(restrictions.getMaxBridgeLoad());
         }
 
         return params;

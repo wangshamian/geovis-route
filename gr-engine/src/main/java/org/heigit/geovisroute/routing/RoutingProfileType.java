@@ -27,6 +27,7 @@ public class RoutingProfileType {
     public static final int DRIVING_ELECTRIC_CAR = 6;
     public static final int DRIVING_MOTORCYCLE = 7;
     public static final int DRIVING_TRAFFIC = 8;
+    public static final int DRIVING_MILITARY = 9;
 
     // 骑行相关
     public static final int CYCLING_REGULAR = 10;
@@ -62,6 +63,7 @@ public class RoutingProfileType {
     public static boolean isDriving(int routePref) {
         return routePref == DRIVING_CAR
                 || routePref == DRIVING_HGV
+                || routePref == DRIVING_MILITARY
                 || routePref == DRIVING_ELECTRIC_CAR
                 || routePref == DRIVING_EMERGENCY
                 || routePref == DRIVING_MOTORCYCLE
@@ -73,6 +75,7 @@ public class RoutingProfileType {
 
     public static boolean isHeavyVehicle(int routePref) {
         return routePref == DRIVING_HGV
+                || routePref == DRIVING_MILITARY
                 || routePref == DRIVING_CAROFFROAD
                 || routePref == DRIVING_EMERGENCY;
     }
@@ -113,6 +116,7 @@ public class RoutingProfileType {
             case DRIVING_CAR -> "driving-car";
             case DRIVING_ELECTRIC_CAR -> "driving-ecar";
             case DRIVING_HGV -> "driving-hgv";
+            case DRIVING_MILITARY -> "driving-military";
             case DRIVING_MOTORCYCLE -> "driving-motorcycle";
             case DRIVING_EMERGENCY -> "driving-emergency";
             case CYCLING_REGULAR -> "cycling-regular";
@@ -142,6 +146,7 @@ public class RoutingProfileType {
             case "driving-car" -> DRIVING_CAR;
             case "driving-ecar" -> DRIVING_ELECTRIC_CAR;
             case "driving-hgv" -> DRIVING_HGV;
+            case "driving-military" -> DRIVING_MILITARY;
             case "driving-motorcycle" -> DRIVING_MOTORCYCLE;
             case "driving-emergency" -> DRIVING_EMERGENCY;
             case "cycling-regular" -> CYCLING_REGULAR;
@@ -171,6 +176,7 @@ public class RoutingProfileType {
         return switch (routePref) {
             case RoutingProfileType.DRIVING_CAR -> FlagEncoderNames.CAR_ORS;
             case RoutingProfileType.DRIVING_HGV -> FlagEncoderNames.HEAVYVEHICLE;
+            case RoutingProfileType.DRIVING_MILITARY -> FlagEncoderNames.MILITARY;
             case RoutingProfileType.DRIVING_EMERGENCY -> FlagEncoderNames.EMERGENCY;
             case RoutingProfileType.DRIVING_MOTORCYCLE -> FlagEncoderNames.GH_MOTOCYCLE;
             case RoutingProfileType.DRIVING_ELECTRIC_CAR -> FlagEncoderNames.EVEHICLE;
@@ -202,6 +208,7 @@ public class RoutingProfileType {
 
             /* ors 自行实现的 flagencoder */
             case FlagEncoderNames.HEAVYVEHICLE -> RoutingProfileType.DRIVING_HGV;
+            case FlagEncoderNames.MILITARY -> RoutingProfileType.DRIVING_MILITARY;
 
             /* 未使用 */
             case FlagEncoderNames.EVEHICLE -> RoutingProfileType.DRIVING_ELECTRIC_CAR;

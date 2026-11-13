@@ -7,6 +7,7 @@ public class FlagEncoderNames {
 
     public static final String CAR_ORS = "car" + ORS_SUFFIX;
     public static final String HEAVYVEHICLE = "heavyvehicle";
+    public static final String MILITARY = "military";
     public static final String EMERGENCY = "emergency";
     public static final String EVEHICLE = "evehicle";       // 未实现
     public static final String RUNNING = "running";        // 未实现
@@ -48,7 +49,7 @@ public class FlagEncoderNames {
      */
     public static String getGHVehicleName(String name) {
         return switch (getBaseName(name)) {
-            case GH_CAR, GH_CAR4WD, "emergency", "evehicle", "heavyvehicle" -> GH_CAR;
+            case GH_CAR, GH_CAR4WD, "emergency", "evehicle", "heavyvehicle", "military" -> GH_CAR;
             case GH_BIKE, GH_BIKE2, "electrobike" -> GH_BIKE;
             case GH_RACINGBIKE, "roadbike" -> GH_RACINGBIKE;
             case GH_MTB -> GH_MTB;

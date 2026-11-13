@@ -321,7 +321,7 @@ public class GRGraphHopperConfig extends GraphHopperConfig {
 
         // 并非由车辆本身隐含的 ORS 专用编码值
         switch (vehicle.toLowerCase()) {
-            case "heavyvehicle" -> {
+            case "heavyvehicle", "military" -> {
                 encodedValues.add("hgv");
                 // 限高/限宽/限重等属性存放在这些编码值中，custom_roads 的 overlay 模式
                 // 需要它们才能按几何覆盖已有 OSM 边的限制属性。

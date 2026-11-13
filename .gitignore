@@ -13,6 +13,7 @@ target/
 logs/
 elevation_cache/
 cgiar_cache/
+tile-cache/
 node_modules/
 
 # jqwik

@@ -54,7 +54,7 @@ public class TollwayExtractor {
                     case RoutingProfileType.DRIVING_CAR:
                         return TollwayType.isSet(TollwayType.MOTORCAR, value) ? 1 : 0;
 
-                    case RoutingProfileType.DRIVING_HGV:
+                    case RoutingProfileType.DRIVING_HGV, RoutingProfileType.DRIVING_MILITARY:
                         // toll:hgv
                         if (TollwayType.isSet(TollwayType.HGV, value))
                             return 1;

@@ -59,14 +59,18 @@ public class CustomRoadNetworkImporter {
             "maxwidth", VehicleDimensionRestrictions.MAX_WIDTH,
             "maxweight", VehicleDimensionRestrictions.MAX_WEIGHT,
             "maxlength", VehicleDimensionRestrictions.MAX_LENGTH,
-            "maxaxleload", VehicleDimensionRestrictions.MAX_AXLE_LOAD);
+            "maxaxleload", VehicleDimensionRestrictions.MAX_AXLE_LOAD,
+            "maxgradient", VehicleDimensionRestrictions.MAX_GRADIENT,
+            "maxforddepth", VehicleDimensionRestrictions.MAX_FORD_DEPTH,
+            "maxbridgeload", VehicleDimensionRestrictions.MAX_BRIDGE_LOAD);
     private static final Map<String, String> ENCODED_VALUE_KEYS = Map.of(
             "maxheight", "max_height",
             "maxwidth", "max_width",
             "maxweight", "max_weight",
             "maxlength", "max_length",
             "maxaxleload", "max_axle_load");
-    private static final Set<String> WEIGHT_TAGS = Set.of("maxweight", "maxaxleload");
+    private static final Set<String> WEIGHT_TAGS = Set.of("maxweight", "maxaxleload", "maxbridgeload");
+    private static final Set<String> PERCENT_TAGS = Set.of("maxgradient");
 
     private final BaseGraph graph;
     private final EncodingManager encodingManager;
@@ -155,7 +159,8 @@ public class CustomRoadNetworkImporter {
         }
 
         List<String> overlayTags = config.getOverlayTags() == null || config.getOverlayTags().isEmpty()
-                ? List.of("maxheight", "maxwidth", "maxweight", "maxlength", "maxaxleload")
+                ? List.of("maxheight", "maxwidth", "maxweight", "maxlength", "maxaxleload",
+                "maxgradient", "maxforddepth", "maxbridgeload")
                 : config.getOverlayTags();
         HeavyVehicleAttributesGraphStorage hgvStorage = findUsableHgvStorage();
         Map<String, DecimalEncodedValue> encodedValues = resolveEncodedValues(overlayTags);
@@ -248,9 +253,14 @@ public class CustomRoadNetworkImporter {
             if (raw == null || raw.isBlank()) {
                 continue;
             }
-            double value = WEIGHT_TAGS.contains(tag)
-                    ? OSMValueExtractor.stringToTons(raw)
-                    : OSMValueExtractor.stringToMeter(raw);
+            double value;
+            if (WEIGHT_TAGS.contains(tag)) {
+                value = OSMValueExtractor.stringToTons(raw);
+            } else if (PERCENT_TAGS.contains(tag)) {
+                value = parsePercent(raw);
+            } else {
+                value = OSMValueExtractor.stringToMeter(raw);
+            }
             if (Double.isNaN(value) || value <= 0) {
                 LOGGER.warn("Cannot parse '{}' value '{}' for custom road feature '{}', skipping this tag",
                         tag, raw, tags.get("name"));
@@ -259,6 +269,18 @@ public class CustomRoadNetworkImporter {
             values[RESTRICTION_INDEX.get(tag)] = value;
         }
         return values;
+    }
+
+    private double parsePercent(String raw) {
+        String normalized = raw.trim().replace(',', '.');
+        if (normalized.endsWith("%")) {
+            normalized = normalized.substring(0, normalized.length() - 1).trim();
+        }
+        try {
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException e) {
+            return Double.NaN;
+        }
     }
 
     private boolean hasRestriction(double[] values) {

@@ -80,11 +80,7 @@ public class HeavyVehicleGraphStorageBuilder extends AbstractGraphStorageBuilder
         hgvType = 0;
 
         if (hasRestrictionValues) {
-            restrictionValues[0] = 0.0;
-            restrictionValues[1] = 0.0;
-            restrictionValues[2] = 0.0;
-            restrictionValues[3] = 0.0;
-            restrictionValues[4] = 0.0;
+            Arrays.fill(restrictionValues, 0.0);
             hasRestrictionValues = false;
         }
 
@@ -121,6 +117,28 @@ public class HeavyVehicleGraphStorageBuilder extends AbstractGraphStorageBuilder
                  * https://wiki.openstreetmap.org/wiki/Restrictions
                  */
 
+                // OSM 原生坡度：incline=10% 表示道路纵坡，用于校验车辆爬坡能力
+                if ("incline".equals(key)) {
+                    double percent = parsePercent(value);
+                    if (percent > 0) {
+                        restrictionValues[VehicleDimensionRestrictions.MAX_GRADIENT] = percent;
+                        hasRestrictionValues = true;
+                    }
+                    continue;
+                }
+
+                // OSM 原生涉水深度：仅当路段标记 ford 时，depth 才表示涉水深度
+                if ("depth".equals(key)) {
+                    if (way.hasTag("ford")) {
+                        double depth = parseMeters(value);
+                        if (depth > 0) {
+                            restrictionValues[VehicleDimensionRestrictions.MAX_FORD_DEPTH] = depth;
+                            hasRestrictionValues = true;
+                        }
+                    }
+                    continue;
+                }
+
                 int valueIndex = -1;
 
                 switch (key) {
@@ -129,6 +147,10 @@ public class HeavyVehicleGraphStorageBuilder extends AbstractGraphStorageBuilder
                     case "maxwidth" -> valueIndex = VehicleDimensionRestrictions.MAX_WIDTH;
                     case "maxlength", "maxlength:hgv" -> valueIndex = VehicleDimensionRestrictions.MAX_LENGTH;
                     case "maxaxleload" -> valueIndex = VehicleDimensionRestrictions.MAX_AXLE_LOAD;
+                    // 军车通过性属性（自定义数据或叠加数据）
+                    case "maxgradient" -> valueIndex = VehicleDimensionRestrictions.MAX_GRADIENT;
+                    case "maxforddepth" -> valueIndex = VehicleDimensionRestrictions.MAX_FORD_DEPTH;
+                    case "maxbridgeload" -> valueIndex = VehicleDimensionRestrictions.MAX_BRIDGE_LOAD;
                     default -> {
                     }
                 }
@@ -142,12 +164,21 @@ public class HeavyVehicleGraphStorageBuilder extends AbstractGraphStorageBuilder
                         value = value.replace(',', '.');
 
                     // weight restrictions
-                    if (valueIndex == VehicleDimensionRestrictions.MAX_WEIGHT || valueIndex == VehicleDimensionRestrictions.MAX_AXLE_LOAD) {
+                    if (valueIndex == VehicleDimensionRestrictions.MAX_WEIGHT
+                            || valueIndex == VehicleDimensionRestrictions.MAX_AXLE_LOAD
+                            || valueIndex == VehicleDimensionRestrictions.MAX_BRIDGE_LOAD) {
                         if (value.contains("t")) {
                             value = value.replace('t', ' ');
                         } else if (value.contains("lbs")) {
                             value = value.replace("lbs", " ");
                             parsedValue = parseDouble(value) / 2204.622;
+                        }
+                    }
+
+                    // 坡度百分比
+                    else if (valueIndex == VehicleDimensionRestrictions.MAX_GRADIENT) {
+                        if (value.contains("%")) {
+                            value = value.replace("%", " ");
                         }
                     }
 
@@ -225,6 +256,28 @@ public class HeavyVehicleGraphStorageBuilder extends AbstractGraphStorageBuilder
             else if ("yes".equals(access))
                 hgvType &= ~flag;
         }
+    }
+
+    private double parsePercent(String value) {
+        if (value == null || value.isBlank()) {
+            return 0.0;
+        }
+        String normalized = value.trim().replace(',', '.');
+        if (normalized.endsWith("%")) {
+            normalized = normalized.substring(0, normalized.length() - 1).trim();
+        }
+        return parseDouble(normalized);
+    }
+
+    private double parseMeters(String value) {
+        if (value == null || value.isBlank()) {
+            return 0.0;
+        }
+        String normalized = value.trim().replace(',', '.');
+        if (normalized.endsWith("m")) {
+            normalized = normalized.substring(0, normalized.length() - 1).trim();
+        }
+        return parseDouble(normalized);
     }
 
     private double parseDouble(String str) {

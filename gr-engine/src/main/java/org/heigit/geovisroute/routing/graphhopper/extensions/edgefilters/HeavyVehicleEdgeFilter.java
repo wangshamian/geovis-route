@@ -51,6 +51,9 @@ public class HeavyVehicleEdgeFilter implements EdgeFilter {
             vehicleAttrs[VehicleDimensionRestrictions.MAX_WEIGHT] = (float) vehicleParams.getWeight();
             vehicleAttrs[VehicleDimensionRestrictions.MAX_LENGTH] = (float) vehicleParams.getLength();
             vehicleAttrs[VehicleDimensionRestrictions.MAX_AXLE_LOAD] = (float) vehicleParams.getAxleload();
+            vehicleAttrs[VehicleDimensionRestrictions.MAX_GRADIENT] = (float) vehicleParams.getGradient();
+            vehicleAttrs[VehicleDimensionRestrictions.MAX_FORD_DEPTH] = (float) vehicleParams.getFordDepth();
+            vehicleAttrs[VehicleDimensionRestrictions.MAX_BRIDGE_LOAD] = (float) vehicleParams.getBridgeLoad();
         } else {
             this.hasHazmat = false;
         }
@@ -66,7 +69,7 @@ public class HeavyVehicleEdgeFilter implements EdgeFilter {
             }
         }
 
-        retValues = new double[5];
+        retValues = new double[VehicleDimensionRestrictions.COUNT];
 
         this.restrictionValues = vehicleAttrs;
         this.indexValues = idx.toArray(new Integer[0]);
@@ -96,12 +99,11 @@ public class HeavyVehicleEdgeFilter implements EdgeFilter {
         if (restCount != 0) {
             if (restCount == 1) {
                 double value = gsHeavyVehicles.getEdgeRestrictionValue(edgeId, indexValues[0]);
-                return value <= 0 || value >= restrictionValues[indexLocs[0]];
+                return passes(indexValues[0], value, restrictionValues[indexLocs[0]]);
             } else {
                 if (gsHeavyVehicles.getEdgeRestrictionValues(edgeId, retValues)) {
                     for (int i = 0; i < restCount; i++) {
-                        double value = retValues[indexLocs[i]];
-                        if (value > 0.0f && value < restrictionValues[indexLocs[i]]) {
+                        if (!passes(indexLocs[i], retValues[indexLocs[i]], restrictionValues[indexLocs[i]])) {
                             return false;
                         }
                     }
@@ -113,5 +115,21 @@ public class HeavyVehicleEdgeFilter implements EdgeFilter {
 
     private boolean isVehicleType(int vt, int vehicleType) {
         return (vt & vehicleType) == vehicleType;
+    }
+
+    /**
+     * 判断车辆是否满足单条边的限制值。
+     * 限高/限宽/限重/限长/轴荷/桥梁承载：边值表示上限，车辆值不得大于边值。
+     * 坡度/涉水深度：边值表示道路实际坡度或水深，车辆能力不得小于边值。
+     */
+    private boolean passes(int index, double edgeValue, double vehicleValue) {
+        if (edgeValue <= 0) {
+            return true;
+        }
+        if (index == VehicleDimensionRestrictions.MAX_GRADIENT
+                || index == VehicleDimensionRestrictions.MAX_FORD_DEPTH) {
+            return vehicleValue >= edgeValue;
+        }
+        return edgeValue >= vehicleValue;
     }
 }
